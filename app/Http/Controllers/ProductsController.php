@@ -43,4 +43,21 @@ class ProductsController extends Controller
             return $this->InternalError(['error' => 'Error creating product', 'message' => $e->getMessage()]);
         }
     }
+
+    public function update(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $data = ProductsDTO::validate($request->all(), 'update');
+            $product = $this->productsService->update($id, $data);
+            DB::commit();
+            return $this->Success([$product]);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError(['error' => 'Error updating product', 'message' => $e->getMessage()]);
+        }
+    }
 }

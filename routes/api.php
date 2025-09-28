@@ -51,6 +51,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductsController::class, 'index']);
         Route::post('/', [ProductsController::class, 'store']);
+        Route::put('/{id}', [ProductsController::class, 'update']);
     });
 
     Route::prefix('cajas')->group(function () {
