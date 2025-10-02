@@ -61,6 +61,7 @@ class VentasController extends Controller
                 $ventaDetalle->producto_id = $detalle['producto_id'];
                 $ventaDetalle->cantidad = $detalle['cantidad'];
                 $ventaDetalle->precio = $detalle['precio'];
+                $ventaDetalle->precio_compra = $detalle['precio_compra'];
                 $ventaDetalle->subtotal =  $detalle['precio'] * $detalle['cantidad'];
                 $ventaDetalle->save();
             }

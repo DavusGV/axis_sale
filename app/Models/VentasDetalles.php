@@ -12,7 +12,13 @@ class VentasDetalles extends Model
         'producto_id',
         'cantidad',
         'precio',
+        'precio_compra',
         'subtotal'
     ];
+
+    public function producto()
+    {
+        return $this->belongsTo(Products::class, 'producto_id');
+    }
 }
 

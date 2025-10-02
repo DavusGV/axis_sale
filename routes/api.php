@@ -9,6 +9,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\CajasController;
 use App\Http\Controllers\VentasController;
+use App\Http\Controllers\ReportesController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -63,6 +64,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('ventas')->group(function () {
         Route::post('/store', [VentasController::class, 'store']);
     });
+
+    Route::prefix('reportes')->group(function () {
+        Route::post('/ventas', [ReportesController::class, 'ventasReport']);
+    });
+
+
 });
 
 
