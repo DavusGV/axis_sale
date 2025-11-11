@@ -37,23 +37,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/assign-permissions', [RolePermissionController::class, 'assignPermissionsToRole']);
         Route::post('/assign-role', [RolePermissionController::class, 'assignRoleToUser']);
     });
+    #region Buildings Routes demo
+        Route::prefix('edificios')->group(function () {
+            Route::get('/', [BuildingsController::class, 'index']);
+            Route::post('/', [BuildingsController::class, 'store']);
+            Route::put('/{id}', [BuildingsController::class, 'update']);
+            Route::delete('/{id}', [BuildingsController::class, 'destroy']);
+        });
 
-    Route::prefix('edificios')->group(function () {
-        Route::get('/', [BuildingsController::class, 'index']);
-        Route::post('/', [BuildingsController::class, 'store']);
-        Route::put('/{id}', [BuildingsController::class, 'update']);
-        Route::delete('/{id}', [BuildingsController::class, 'destroy']);
-    });
+        Route::prefix('category')->group(function () {
+            Route::get('/', [CategoryController::class, 'index']);
+        });
 
-    Route::prefix('category')->group(function () {
-        Route::get('/', [CategoryController::class, 'index']);
-    });
+    #endregion Buildings Routes demo
 
-    Route::prefix('products')->group(function () {
-        Route::get('/', [ProductsController::class, 'index']);
-        Route::post('/', [ProductsController::class, 'store']);
-        Route::put('/{id}', [ProductsController::class, 'update']);
-    });
+
 
     Route::prefix('cajas')->group(function () {
         Route::get('/', [CajasController::class, 'index']);
@@ -69,7 +67,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/ventas', [ReportesController::class, 'ventasReport']);
     });
 
+     Route::prefix('products')->group(function () {
+        Route::get('/', [ProductsController::class, 'index']);
+        Route::post('/', [ProductsController::class, 'store']);
+        Route::put('/{id}', [ProductsController::class, 'update']);
+        Route::delete('/{id}', [ProductsController::class, 'destroy']);
+    });
 
 });
+
 
 

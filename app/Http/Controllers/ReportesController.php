@@ -9,6 +9,7 @@ use App\Models\HistorialCajas;
 use PhpParser\Node\Expr\FuncCall;
 use App\Models\Ventas;
 use App\Models\VentasDetalles;
+use App\Models\UserEstablecimiento;
 use Exception;
 
 
@@ -28,8 +29,16 @@ class ReportesController extends Controller
         $desde = $request->input('desde');
         $hasta = $request->input('hasta');
 
-        $query = VentasDetalles::query()
+        $user = auth()->user();
+                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+        $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
+
+         $query = VentasDetalles::query()
             ->with('producto:id,nombre')
+            ->whereHas('venta', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id);
+            })
             ->when($desde, fn($q) => $q->whereDate('created_at', '>=', $desde))
             ->when($hasta, fn($q) => $q->whereDate('created_at', '<=', $hasta));
 

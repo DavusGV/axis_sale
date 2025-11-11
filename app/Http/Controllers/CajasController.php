@@ -7,17 +7,26 @@ use Illuminate\Validation\ValidationException;
 use Exception;
 use App\Models\Cajas;
 use App\Models\HistorialCajas;
+use App\Models\UserEstablecimiento;
 use PhpParser\Node\Expr\FuncCall;
 
 class CajasController extends Controller
 {
     public function __construct()
     {
+
     }
 
     public function index()
     {
-        $cajas = Cajas::all();
+        //vamos a obtener el id del usuario logeado
+        $user = auth()->user();
+        //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+        if (!$establecimiento) {
+            return $this->InternalError('El usuario no tiene ningún establecimiento asignado.');
+        }
+        $cajas = Cajas::where('establecimiento_id', $establecimiento->establecimiento_id)->get();
         return $this->Success($cajas);
     }
 
@@ -41,8 +50,15 @@ class CajasController extends Controller
                 throw ValidationException::withMessages(['caja_id' => 'La caja ya está abierta.']);
             }
 
-            //validar que no haya otra caja abierta
-            $otraCajaAbierta = Cajas::where('abierta', true)->first();
+            //validar que no haya otra caja abierta del mismo establecimiento
+            //vamos a obtener el id del usuario logeado
+            $user = auth()->user();
+            //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+
+            $otraCajaAbierta = Cajas::where('abierta', true)
+                ->where('establecimiento_id', $establecimiento->establecimiento_id)
+                ->first();
             if ($otraCajaAbierta) {
                 throw ValidationException::withMessages(['caja_id' => 'Ya hay otra caja abierta: ' . $otraCajaAbierta->nombre]);
             }

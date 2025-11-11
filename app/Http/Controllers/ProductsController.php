@@ -60,4 +60,17 @@ class ProductsController extends Controller
             return $this->InternalError(['error' => 'Error updating product', 'message' => $e->getMessage()]);
         }
     }
+
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+        try {
+            $this->productsService->delete($id);
+            DB::commit();
+            return $this->Success(['message' => 'Product deleted successfully']);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError(['error' => 'Error deleting product', 'message' => $e->getMessage()]);
+        }
+    }
 }

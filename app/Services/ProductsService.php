@@ -3,23 +3,33 @@
 namespace App\Services;
 
 use App\Models\Products;
+use App\Models\UserEstablecimiento;
 use Exception;
 
 class ProductsService
 {
     public function getAll()
     {
-        return Products::all();
+        $user = auth()->user();
+                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+        $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
+        return Products::where('establecimiento_id', $establecimiento_id)->get();
     }
 
     public function getById($id)
     {
+
         return Products::findOrFail($id);
     }
 
     public function create(array $data)
     {
-        $data['establecimiento_id'] = 1; // Valor fijo para establecimiento_id
+        $user = auth()->user();
+                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+        $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
+        $data['establecimiento_id'] = $establecimiento_id;
         return Products::create($data);
     }
 

@@ -10,6 +10,7 @@ use App\Models\HistorialCajas;
 use PhpParser\Node\Expr\FuncCall;
 use App\Models\Ventas;
 use App\Models\VentasDetalles;
+use App\Models\UserEstablecimiento;
 
 class VentasController extends Controller
 {
@@ -25,7 +26,13 @@ class VentasController extends Controller
     public function store(Request $request)
     {
         try {
-            $establecimiento_id = 1; // Reemplaza con el ID real del establecimiento vendra del frontend;
+            $user = auth()->user();
+                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+                $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+                if (!$establecimiento) {
+                    return $this->InternalError('El usuario no tiene ningún establecimiento asignado.');
+                }
+            $establecimiento_id = $establecimiento->establecimiento_id; // Reemplaza con el ID real del establecimiento vendra del frontend;
             DB::beginTransaction();
 
             $caja = Cajas::where('establecimiento_id', $establecimiento_id)
