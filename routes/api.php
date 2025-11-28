@@ -50,9 +50,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         });
 
     #endregion Buildings Routes demo
-
-
-
     Route::prefix('cajas')->group(function () {
         Route::get('/', [CajasController::class, 'index']);
         Route::post('open', [CajasController::class, 'open']);
@@ -75,6 +72,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 });
-
-
 

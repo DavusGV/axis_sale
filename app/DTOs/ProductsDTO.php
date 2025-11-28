@@ -31,6 +31,9 @@ class ProductsDTO
                 'precio_compra' => 'required|numeric|min:0',
                 'precio_venta' => 'required|numeric|min:0',
                 'stock' => 'required|integer|min:0',
+                'clave' => 'nullable|string|max:100|unique:productos,clave',
+                'imagen' => 'nullable'
+
             ],
             'update' => [
                 'nombre' => 'sometimes|string|max:255',
@@ -40,6 +43,8 @@ class ProductsDTO
                 'precio_compra' => 'sometimes|numeric|min:0',
                 'precio_venta' => 'sometimes|numeric|min:0',
                 'stock' => 'sometimes|integer|min:0',
+                'clave' => 'sometimes|string|max:255',
+                'imagen' => 'nullable',
             ]
         ];
 
