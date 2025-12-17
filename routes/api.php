@@ -57,7 +57,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::prefix('ventas')->group(function () {
+        Route::get('/products', [VentasController::class, 'index']); 
         Route::post('/store', [VentasController::class, 'store']);
+        Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
     });
 
     Route::prefix('reportes')->group(function () {

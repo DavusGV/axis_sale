@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserEstablecimiento;
 use App\DTOs\AuthDTO;
 use App\Services\AuthService;
 use Illuminate\Http\Request;
@@ -44,7 +45,12 @@ class AuthController extends Controller
             if (!$token) {
                 return $this->Unauthorized();
             }
-            return $this->Success(['token' => $token, 'user' => Auth::user()]);
+            
+            $user = Auth::user();
+        
+            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->get();
+
+            return $this->Success(['token' => $token, 'user' => $user, 'establecimiento' => $establecimiento]);
         } catch (ValidationException $e) {
             return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
         } catch (Exception $e) {

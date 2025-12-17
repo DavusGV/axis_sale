@@ -8,6 +8,7 @@ use Exception;
 use App\Models\Cajas;
 use App\Models\HistorialCajas;
 use PhpParser\Node\Expr\FuncCall;
+use App\Models\Products;
 use App\Models\Ventas;
 use App\Models\VentasDetalles;
 use App\Models\UserEstablecimiento;
@@ -18,9 +19,53 @@ class VentasController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        try {
+            $user = auth()->user();
+            //vamoas a obtener de pronto el primer establecimiento asignado al usuario
+            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+            $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
 
+            $query = Products::where('establecimiento_id', $establecimiento_id);
+
+            // filtro de busqueda
+            if ($request ->filled('search')) {
+                $search = $request->search;
+
+                $query->where(function ($q) use ($search){
+                    $q->where('nombre', 'like', "%{$search}%")
+                    ->orWhere('codigo', 'like', "%{$search}%")
+                    ->orWhere('descripcion', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->filled('categoria_id')) {
+                $query->where('categoria_id', $request->categoria_id);
+            }
+            $query->orderBy('created_at', 'desc');
+
+            // paginacion
+            $perPage = $request->get('per_page', 10);
+            $paginator = $query->paginate($perPage);
+
+            return response()->json([
+                'data'          => $paginator->items(),
+                'total'         => $paginator->total(),
+                'per_page'      => $paginator->perPage(),
+                'current_page'  => $paginator->currentPage(),
+                'last_page'     => $paginator->lastPage(),
+                'from'          => $paginator->firstItem(),
+                'to'            => $paginator->lastItem()
+            ], 200);
+        } 
+        catch (Exception $e) {
+
+            return response()->json([
+                'error'   => 'Error fetching products',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function store(Request $request)
@@ -63,6 +108,27 @@ class VentasController extends Controller
 
             //hay que guardar los detalles de la venta
             foreach ($request->detalles as $detalle) {
+
+                $producto = Products::lockForUpdate()->find($detalle['producto_id']);
+
+                if (!$producto) {
+                    DB::rollBack();
+                    return $this->BadRequest("Producto no encontrado");
+                }
+
+                // Validamos si hay stok disponibles para la venta
+                if ($producto->stock < $detalle['cantidad']) {
+                    DB::rollBack();
+                    return $this->BadRequest([
+                        'message' => "Stock insuficiente del producto: {$producto->nombre}",
+                        'stock_actual' => $producto->stock
+                    ]);
+                }
+
+                // Restamos el stock disponible
+                $producto->stock -= $detalle['cantidad'];
+                $producto->save();
+
                 $ventaDetalle = new VentasDetalles();
                 $ventaDetalle->venta_id = $venta->id;
                 $ventaDetalle->producto_id = $detalle['producto_id'];
@@ -82,6 +148,75 @@ class VentasController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             return $this->InternalError(['error' => 'Error al registrar la venta.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+
+    // Método específico para el lector de código de barras en ventas
+    public function leerCodigoBarras(Request $request)
+    {
+        try {
+            $request->validate([
+                'codigo' => 'required|string',
+                'establecimiento_id' => 'sometimes|integer'
+            ]);
+
+            $user = auth()->user();
+            
+            // Obtener el establecimiento del usuario
+            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+            
+            if (!$establecimiento) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no tiene establecimiento asignado'
+                ], 400);
+            }
+
+            $establecimiento_id = $establecimiento->establecimiento_id;
+
+            // Buscar producto por código de barra en este caso por codigo
+            $producto = Products::where('codigo', $request->codigo)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->first();
+
+            if (!$producto) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Producto no encontrado'
+                ], 404);
+            }
+
+            // Verificar si hay stock
+            if ($producto->stock < 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Producto sin stock disponible',
+                    'producto' => $producto
+                ], 400);
+            }
+
+            // Retornar datos del producto para el carrito
+            return response()->json([
+                'success' => true,
+                'message' => 'Producto encontrado',
+                'producto' => [
+                    'id' => $producto->id,
+                    'nombre' => $producto->nombre,
+                    'codigo' => $producto->codigo,
+                    'precio_compra' => $producto->precio_compra,
+                    'precio_venta' => $producto->precio_venta,
+                    'stock' => $producto->stock,
+                    'imagen_url' => $producto->imagen_url
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al leer código',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

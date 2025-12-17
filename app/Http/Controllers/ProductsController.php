@@ -18,30 +18,30 @@ class ProductsController extends Controller
     }
 
     public function index(Request $request)
-{
-    try {
-        $query = $this->productsService->getAll($request);
+    {
+        try {
+            $query = $this->productsService->getAll($request);
 
-        $perPage = $request->get('per_page', 10);
-        $paginator = $query->paginate($perPage);
+            $perPage = $request->get('per_page', 10);
+            $paginator = $query->paginate($perPage);
 
-        return response()->json([
-            'data'          => $paginator->items(),
-            'total'         => $paginator->total(),
-            'per_page'      => $paginator->perPage(),
-            'current_page'  => $paginator->currentPage(),
-            'last_page'     => $paginator->lastPage(),
-            'from'          => $paginator->firstItem(),
-            'to'            => $paginator->lastItem()
-        ], 200);
+            return response()->json([
+                'data'          => $paginator->items(),
+                'total'         => $paginator->total(),
+                'per_page'      => $paginator->perPage(),
+                'current_page'  => $paginator->currentPage(),
+                'last_page'     => $paginator->lastPage(),
+                'from'          => $paginator->firstItem(),
+                'to'            => $paginator->lastItem()
+            ], 200);
 
-    } catch (Exception $e) {
-        return $this->InternalError([
-            'error' => 'Error fetching products',
-            'message' => $e->getMessage(),
-        ]);
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error' => 'Error fetching products',
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
-}
 
 
 
