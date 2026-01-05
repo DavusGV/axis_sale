@@ -20,6 +20,8 @@ class ProductsController extends Controller
     public function index(Request $request)
     {
         try {
+
+            
             $query = $this->productsService->getAll($request);
 
             $perPage = $request->get('per_page', 10);
@@ -36,10 +38,7 @@ class ProductsController extends Controller
             ], 200);
 
         } catch (Exception $e) {
-            return $this->InternalError([
-                'error' => 'Error fetching products',
-                'message' => $e->getMessage(),
-            ]);
+            return $this->InternalError(['error' => 'Error fetching products', 'message' => $e->getMessage()]);
         }
     }
 
@@ -63,17 +62,12 @@ class ProductsController extends Controller
 
     } catch (ValidationException $e) {
         DB::rollBack();
-        return $this->BadRequest([
-            'error' => 'Validation failed',
-            'messages' => $e->errors()
+        return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()
         ]);
 
     } catch (Exception $e) {
         DB::rollBack();
-        return $this->InternalError([
-            'error' => 'Error creating product',
-            'message' => $e->getMessage()
-        ]);
+        return $this->InternalError([ 'error' => 'Error creating product', 'message' => $e->getMessage()]);
     }
 }
 

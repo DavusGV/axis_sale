@@ -10,6 +10,8 @@ use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\CajasController;
 use App\Http\Controllers\VentasController;
 use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\EstablecimientoController;
+    use App\Http\Controllers\UsersController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,13 +25,17 @@ use App\Http\Controllers\ReportesController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+    
 });
+
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
+
 
 // Rutas en api.php
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function () {
+    
 
     Route::prefix('roles-permissions')->group(function () {
         Route::post('/roles', [RolePermissionController::class, 'createRole']);
@@ -73,5 +79,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{id}', [ProductsController::class, 'destroy']);
     });
 
+    Route::prefix('establecimientos')->group(function () {
+        Route::get('/', [EstablecimientoController::class, 'index']);
+        Route::post('/', [EstablecimientoController::class, 'store']);
+        Route::get('{id}', [EstablecimientoController::class, 'show']);
+        Route::put('{id}', [EstablecimientoController::class, 'update']);
+        Route::delete('{id}', [EstablecimientoController::class, 'destroy']);
+    });
+
+    Route::prefix('users')->group(function () {
+
+        Route::get('/', [UsersController::class, 'index']);
+        Route::post('/', [UsersController::class, 'store']);
+        Route::get('{id}', [UsersController::class, 'show']);
+        Route::put('{id}', [UsersController::class, 'update']);
+        Route::delete('{id}', [UsersController::class, 'destroy']);
+        Route::get('{id}/establecimientos', [UsersController::class, 'establecimientos']);
+        Route::post('{id}/establecimientos', [UsersController::class, 'assignEstablecimiento']);
+        Route::delete('{id}/establecimientos/{establecimientoId}', [UsersController::class, 'unassignEstablecimiento']);
+    });
 });
 

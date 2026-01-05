@@ -12,10 +12,9 @@ class ProductsService
 {
     public function getAll(Request $request)
     {
-        $user = auth()->user();
-        //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-        $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
+        // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+        // enviado por el frontend y validado previamente por middleware.
+        $establecimiento_id = app('establishment_id');
 
         $query = Products::where('establecimiento_id', $establecimiento_id);
 
@@ -38,15 +37,16 @@ class ProductsService
     public function getById($id)
     {
 
-        return Products::findOrFail($id);
+        return Products::where('id', $id)
+            ->where('establecimiento_id', app('establishment_id'))
+            ->firstOrFail();
     }
 
     public function create(array $data)
     {
-        $user = auth()->user();
-                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-        $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
+        // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+        // enviado por el frontend y validado previamente por middleware.
+        $establecimiento_id = app('establishment_id');
         $data['establecimiento_id'] = $establecimiento_id;
 
         if (isset($data['imagen']) && $data['imagen'] instanceof \Illuminate\Http\UploadedFile)
@@ -70,7 +70,13 @@ class ProductsService
 
     public function update($id, array $data)
     {
-        $product = Products::findOrFail($id);
+        // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+        // enviado por el frontend y validado previamente por middleware.
+        $establecimiento_id = app('establishment_id');
+
+         $product = Products::where('id', $id)
+            ->where('establecimiento_id', $establecimiento_id)
+            ->firstOrFail();
 
          if (isset($data['imagen']) && $data['imagen'] instanceof \Illuminate\Http\UploadedFile) {
 
@@ -99,7 +105,14 @@ class ProductsService
 
     public function delete($id)
     {
-        $product = Products::findOrFail($id);
+        // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+        // enviado por el frontend y validado previamente por middleware.
+        $establecimiento_id = app('establishment_id');
+
+        $product = Products::where('id', $id)
+            ->where('establecimiento_id', $establecimiento_id)
+            ->firstOrFail();
+
         $product->delete();
     }
 
@@ -109,7 +122,7 @@ class ProductsService
         $product = Products::with('imagen')->findOrFail($id);
 
         // Agregar URL completa de la  imagen
-        $$product->transform(function ($image) {
+        $product->transform(function ($image) {
             $image->imagen = url('storage/' . $image->imagen);
             return $image;
         });

@@ -22,11 +22,10 @@ class VentasController extends Controller
     public function index(Request $request)
     {
         try {
-            $user = auth()->user();
-            //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-            $establecimiento_id = $establecimiento->establecimiento_id ?? 0;
 
+            // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+            // enviado por el frontend y validado previamente por middleware.
+            $establecimiento_id = app('establishment_id');
             $query = Products::where('establecimiento_id', $establecimiento_id);
 
             // filtro de busqueda
@@ -70,16 +69,12 @@ class VentasController extends Controller
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
         try {
-            $user = auth()->user();
-                //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-                $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-                if (!$establecimiento) {
-                    return $this->InternalError('El usuario no tiene ningún establecimiento asignado.');
-                }
-            $establecimiento_id = $establecimiento->establecimiento_id; // Reemplaza con el ID real del establecimiento vendra del frontend;
-            DB::beginTransaction();
-
+            // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+            // enviado por el frontend y validado previamente por middleware.
+            $establecimiento_id = app('establishment_id');
+        
             $caja = Cajas::where('establecimiento_id', $establecimiento_id)
                 ->where('abierta', true)
                 ->first();
@@ -161,10 +156,9 @@ class VentasController extends Controller
                 'establecimiento_id' => 'sometimes|integer'
             ]);
 
-            $user = auth()->user();
-            
-            // Obtener el establecimiento del usuario
-            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
+            // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+            // enviado por el frontend y validado previamente por middleware.
+            $establecimiento = app('establishment_id');
             
             if (!$establecimiento) {
                 return response()->json([

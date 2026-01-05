@@ -48,9 +48,13 @@ class AuthController extends Controller
             
             $user = Auth::user();
         
-            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->get();
+            $establishment = UserEstablecimiento::query()
+            ->where('user_id', $user->id)
+            ->join('establecimientos','establecimientos.id','=', 'establecimiento_user.establecimiento_id')
+            ->select('establecimientos.id', 'establecimientos.nombre')
+            ->orderBy('establecimiento_user.created_at', 'asc')->get();
 
-            return $this->Success(['token' => $token, 'user' => $user, 'establecimiento' => $establecimiento]);
+            return $this->Success(['token' => $token, 'user' => $user, 'establishment' => $establishment]);
         } catch (ValidationException $e) {
             return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
         } catch (Exception $e) {

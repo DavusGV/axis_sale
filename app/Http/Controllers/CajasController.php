@@ -19,16 +19,14 @@ class CajasController extends Controller
 
     public function index()
     {
-        //vamos a obtener el id del usuario logeado
-        $user = auth()->user();
-        //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-        if (!$establecimiento) {
-            return $this->InternalError('El usuario no tiene ningún establecimiento asignado.');
-        }
-        $cajas = Cajas::where('establecimiento_id', $establecimiento->establecimiento_id)->get();
+        // El establecimiento activo viene desde el fornt y se obtiene desde middleware 
+        $establecimiento_id= app('establishment_id');
+        $cajas = Cajas::where('establecimiento_id', $establecimiento_id)->get();
+
         return $this->Success($cajas);
     }
+
+    
 
     public function store(Request $request)
     {
@@ -44,6 +42,9 @@ class CajasController extends Controller
 
         try {
             DB::beginTransaction();
+            // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
+            // enviado por el frontend y validado previamente por middleware.
+            $establecimiento_id = app('establishment_id');
 
             $caja = Cajas::find($request->caja_id);
             if ($caja->abierta) {
@@ -52,13 +53,9 @@ class CajasController extends Controller
 
             //validar que no haya otra caja abierta del mismo establecimiento
             //vamos a obtener el id del usuario logeado
-            $user = auth()->user();
-            //vamoas a obtener de pronto el primer establecimiento asignado al usuario
-            $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-
             $otraCajaAbierta = Cajas::where('abierta', true)
-                ->where('establecimiento_id', $establecimiento->establecimiento_id)
-                ->first();
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
             if ($otraCajaAbierta) {
                 throw ValidationException::withMessages(['caja_id' => 'Ya hay otra caja abierta: ' . $otraCajaAbierta->nombre]);
             }

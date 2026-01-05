@@ -7,5 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class UserEstablecimiento extends Model
 {
     protected $table = 'establecimiento_user';
+    
+    protected $fillable = [
+        'establecimiento_id',
+        'user_id'
+    ];
 }
 
