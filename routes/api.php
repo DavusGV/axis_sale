@@ -56,11 +56,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         });
 
     #endregion Buildings Routes demo
-    Route::prefix('cajas')->group(function () {
-        Route::get('/', [CajasController::class, 'index']);
-        Route::post('open', [CajasController::class, 'open']);
-        Route::post('close', [CajasController::class, 'close']);
-    });
+    
 
     Route::prefix('ventas')->group(function () {
         Route::get('/products', [VentasController::class, 'index']); 
@@ -100,3 +96,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     });
 });
 
+Route::prefix('cajas')->group(function () {
+        Route::get('/', [CajasController::class, 'index']);
+        Route::get('/{boxId}/history', [CajasController::class, 'showHistoryBox']);
+        Route::get('/{historyId}/ventas', [CajasController::class, 'showHistorySale']);
+        Route::post('open', [CajasController::class, 'open']);
+        Route::post('close', [CajasController::class, 'close']);
+    });

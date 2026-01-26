@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\SetEstablishment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -8,29 +9,44 @@ use Exception;
 use App\Models\Cajas;
 use App\Models\HistorialCajas;
 use App\Models\UserEstablecimiento;
+use App\Models\Ventas;
 use PhpParser\Node\Expr\FuncCall;
 
 class CajasController extends Controller
 {
     public function __construct()
     {
-
     }
 
     public function index()
     {
         // El establecimiento activo viene desde el fornt y se obtiene desde middleware 
-        $establecimiento_id= app('establishment_id');
+        $establecimiento_id = app('establishment_id');
         $cajas = Cajas::where('establecimiento_id', $establecimiento_id)->get();
 
         return $this->Success($cajas);
     }
 
-    
+    public function showHistoryBox($boxId)
+    {
+        $history = HistorialCajas::where('caja_id', $boxId)
+            ->OrderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return $this->Success($history);
+    }
+
+    public function showHistorySale($historyId)
+    {
+        $sale = Ventas::where('historial_caja_id', $historyId)
+        ->OrderBy('created_at', 'desc')
+        ->paginate(10);
+
+        return $this->Success($sale);
+    }
 
     public function store(Request $request)
     {
-
     }
 
     public function open(Request $request)
