@@ -12,11 +12,18 @@ use App\Models\Products;
 use App\Models\Ventas;
 use App\Models\VentasDetalles;
 use App\Models\UserEstablecimiento;
+use Carbon\Carbon;
 
 class VentasController extends Controller
 {
     public function __construct()
     {
+        // Configuramos la zona horaria mexicana para este controlador
+        date_default_timezone_set('America/Mexico_City');
+
+        // También configuramos Carbon para usar la misma zona horaria
+        Carbon::setLocale('es');
+        Carbon::now()->setTimezone('America/Mexico_City');
     }
 
     public function index(Request $request)
@@ -57,7 +64,7 @@ class VentasController extends Controller
                 'from'          => $paginator->firstItem(),
                 'to'            => $paginator->lastItem()
             ], 200);
-        } 
+        }
         catch (Exception $e) {
 
             return response()->json([
@@ -74,7 +81,7 @@ class VentasController extends Controller
             // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
             // enviado por el frontend y validado previamente por middleware.
             $establecimiento_id = app('establishment_id');
-        
+
             $caja = Cajas::where('establecimiento_id', $establecimiento_id)
                 ->where('abierta', true)
                 ->first();
@@ -99,6 +106,7 @@ class VentasController extends Controller
             $venta->pago = $request->pago;
             $venta->cambio = $request->cambio;
             $venta->metodo_pago = $request->metodo_pago;
+            $venta->created_at = Carbon::now();
             $venta->save();
 
             //hay que guardar los detalles de la venta
@@ -159,7 +167,7 @@ class VentasController extends Controller
             // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
             // enviado por el frontend y validado previamente por middleware.
             $establecimiento = app('establishment_id');
-            
+
             if (!$establecimiento) {
                 return response()->json([
                     'success' => false,

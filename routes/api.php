@@ -11,7 +11,8 @@ use App\Http\Controllers\CajasController;
 use App\Http\Controllers\VentasController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\EstablecimientoController;
-    use App\Http\Controllers\UsersController;
+use App\Http\Controllers\UsersController;
+use App\Http\Controllers\Finanzas\IngresosControlador;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -25,7 +26,7 @@ use App\Http\Controllers\EstablecimientoController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
-    
+
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
@@ -35,7 +36,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function () {
-    
+
 
     Route::prefix('roles-permissions')->group(function () {
         Route::post('/roles', [RolePermissionController::class, 'createRole']);
@@ -56,10 +57,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         });
 
     #endregion Buildings Routes demo
-    
+
 
     Route::prefix('ventas')->group(function () {
-        Route::get('/products', [VentasController::class, 'index']); 
+        Route::get('/products', [VentasController::class, 'index']);
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
     });
