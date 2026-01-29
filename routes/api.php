@@ -95,12 +95,19 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('{id}/establecimientos', [UsersController::class, 'assignEstablecimiento']);
         Route::delete('{id}/establecimientos/{establecimientoId}', [UsersController::class, 'unassignEstablecimiento']);
     });
-});
 
-Route::prefix('cajas')->group(function () {
+    Route::prefix('cajas')->group(function () {
         Route::get('/', [CajasController::class, 'index']);
         Route::get('/{boxId}/history', [CajasController::class, 'showHistoryBox']);
         Route::get('/{historyId}/ventas', [CajasController::class, 'showHistorySale']);
         Route::post('open', [CajasController::class, 'open']);
         Route::post('close', [CajasController::class, 'close']);
     });
+
+
+     Route::prefix('finance')->group(function () {
+        Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);
+    });
+});
+
+
