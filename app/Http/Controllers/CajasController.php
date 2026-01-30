@@ -28,22 +28,36 @@ class CajasController extends Controller
     }
 
     public function showHistoryBox($boxId)
-    {
-        $history = HistorialCajas::where('caja_id', $boxId)
-            ->OrderBy('created_at', 'desc')
-            ->paginate(10);
-
-        return $this->Success($history);
-    }
-
-    public function showHistorySale($historyId)
-    {
-        $sale = Ventas::where('historial_caja_id', $historyId)
-        ->OrderBy('created_at', 'desc')
+{
+    $history = HistorialCajas::select([
+            'id',
+            'caja_id',
+            'estado',
+            'saldo_inicial',
+            'saldo_final',
+            'created_at',
+            'updated_at'
+        ])
+        ->where('caja_id', $boxId)
+        ->orderByDesc('created_at')
         ->paginate(10);
 
-        return $this->Success($sale);
-    }
+    return $this->Success($history);
+}
+
+    public function showHistorySale($historyId)
+{
+    $sale = Ventas::where('historial_caja_id', $historyId)
+        ->with([
+            'saleDetails:id,venta_id,producto_id,cantidad,precio,subtotal',
+            'saleDetails.producto:id,nombre,precio_venta'
+        ])
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
+
+    return $this->Success($sale);
+}
+
 
     public function store(Request $request)
     {

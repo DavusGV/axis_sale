@@ -20,10 +20,7 @@ class ProductsController extends Controller
     public function index(Request $request)
     {
         try {
-
-            
             $query = $this->productsService->getAll($request);
-
             $perPage = $request->get('per_page', 10);
             $paginator = $query->paginate($perPage);
 
