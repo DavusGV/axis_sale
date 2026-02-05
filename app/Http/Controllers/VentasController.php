@@ -102,11 +102,16 @@ class VentasController extends Controller
             $venta->establecimiento_id = $establecimiento_id;
             $venta->historial_caja_id = $historialCaja->id;
             $venta->usuario_id = $request->usuario_id;
-            $venta->total = $request->total;
+            $venta->total = $request->total_final; //es lo que se pago con descuento aplicado o sin descuento
             $venta->pago = $request->pago;
             $venta->cambio = $request->cambio;
             $venta->metodo_pago = $request->metodo_pago;
+            $venta->tipo_descuento = $request->tipo_descuento;
+            $venta->descuento = $request->descuento;
+            $venta->descuento_aplicado = $request->descuento_aplicado;
+            $venta->subtotal = $request->total; /// Total final es lo que se debio de haber pagado
             $venta->created_at = Carbon::now();
+
             $venta->save();
 
             //hay que guardar los detalles de la venta
