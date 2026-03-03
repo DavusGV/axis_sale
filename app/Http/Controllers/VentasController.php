@@ -87,34 +87,32 @@ class VentasController extends Controller
                 ->first();
 
             if (!$caja) {
-                throw ValidationException::withMessages(['caja_id' => 'La caja no existe o no está abierta.']);
+                throw ValidationException::withMessages(['caja_id' => 'La caja no existe o no esta abierta.']);
             }
-            //buscamos el historial de la caja abierta
+
+            // Buscamos el historial de la caja abierta
             $historialCaja = HistorialCajas::where('caja_id', $caja->id)
                 ->where('estado', 'abierta')
                 ->first();
 
             if (!$historialCaja) {
-                throw ValidationException::withMessages(['caja_id' => 'No se encontró un historial de caja abierto.']);
+                throw ValidationException::withMessages(['caja_id' => 'No se encontro un historial de caja abierto.']);
             }
 
             $venta = new Ventas();
-            $venta->establecimiento_id = $establecimiento_id;
-            $venta->historial_caja_id = $historialCaja->id;
-            $venta->usuario_id = $request->usuario_id;
-            $venta->total = $request->total_final; //es lo que se pago con descuento aplicado o sin descuento
-            $venta->pago = $request->pago;
-            $venta->cambio = $request->cambio;
-            $venta->metodo_pago = $request->metodo_pago;
-            $venta->tipo_descuento = $request->tipo_descuento;
-            $venta->descuento = $request->descuento;
-            $venta->descuento_aplicado = $request->descuento_aplicado;
-            $venta->subtotal = $request->total; /// Total final es lo que se debio de haber pagado
-            $venta->created_at = Carbon::now();
+            $venta->establecimiento_id  = $establecimiento_id;
+            $venta->historial_caja_id   = $historialCaja->id;
+            $venta->usuario_id          = $request->usuario_id;
+            $venta->total               = $request->total_final; // total pagado con descuentos por producto aplicados
+            $venta->pago                = $request->pago;
+            $venta->cambio              = $request->cambio;
+            $venta->metodo_pago         = $request->metodo_pago;
+            $venta->subtotal            = $request->total; // total sin descuentos, precio original
+            $venta->created_at          = Carbon::now();
 
             $venta->save();
 
-            //hay que guardar los detalles de la venta
+            // Guardamos los detalles de la venta con descuento por producto
             foreach ($request->detalles as $detalle) {
 
                 $producto = Products::lockForUpdate()->find($detalle['producto_id']);
@@ -124,11 +122,11 @@ class VentasController extends Controller
                     return $this->BadRequest("Producto no encontrado");
                 }
 
-                // Validamos si hay stok disponibles para la venta
+                // Validamos si hay stock disponible para la venta
                 if ($producto->stock < $detalle['cantidad']) {
                     DB::rollBack();
                     return $this->BadRequest([
-                        'message' => "Stock insuficiente del producto: {$producto->nombre}",
+                        'message'      => "Stock insuficiente del producto: {$producto->nombre}",
                         'stock_actual' => $producto->stock
                     ]);
                 }
@@ -138,12 +136,16 @@ class VentasController extends Controller
                 $producto->save();
 
                 $ventaDetalle = new VentasDetalles();
-                $ventaDetalle->venta_id = $venta->id;
-                $ventaDetalle->producto_id = $detalle['producto_id'];
-                $ventaDetalle->cantidad = $detalle['cantidad'];
-                $ventaDetalle->precio = $detalle['precio'];
-                $ventaDetalle->precio_compra = $detalle['precio_compra'];
-                $ventaDetalle->subtotal =  $detalle['precio'] * $detalle['cantidad'];
+                $ventaDetalle->venta_id           = $venta->id;
+                $ventaDetalle->producto_id        = $detalle['producto_id'];
+                $ventaDetalle->cantidad           = $detalle['cantidad'];
+                $ventaDetalle->precio             = $detalle['precio'];
+                $ventaDetalle->precio_compra      = $detalle['precio_compra'];
+                // campos de descuento por producto (opcionales, nullable)
+                $ventaDetalle->subtotal           = $detalle['precio'] * $detalle['cantidad'];
+                $ventaDetalle->tipo_descuento     = $detalle['tipo_descuento'] ?? null;
+                $ventaDetalle->descuento          = $detalle['descuento'] ?? 0;
+                $ventaDetalle->descuento_aplicado = $detalle['descuento_aplicado'] ?? 0;
                 $ventaDetalle->save();
             }
 

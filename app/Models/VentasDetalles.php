@@ -1,7 +1,6 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class VentasDetalles extends Model
@@ -13,7 +12,10 @@ class VentasDetalles extends Model
         'cantidad',
         'precio',
         'precio_compra',
-        'subtotal'
+        'subtotal',
+        'tipo_descuento',
+        'descuento',
+        'descuento_aplicado',
     ];
 
     public function producto()
@@ -26,4 +28,3 @@ class VentasDetalles extends Model
         return $this->belongsTo(Ventas::class, 'venta_id');
     }
 }
-
