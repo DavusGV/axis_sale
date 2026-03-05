@@ -13,6 +13,8 @@ use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\EstablecimientoController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\Finanzas\IngresosControlador;
+use App\Http\Controllers\Finanzas\GastosController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -107,6 +109,20 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
      Route::prefix('finance')->group(function () {
         Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);
+        Route::post('/tgasto', [GastosController::class, 'storeType']);
+        Route::get('/tgasto', [GastosController::class, 'indexType']);
+        Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
+        Route::put('/tgasto', [GastosController::class, 'updateType']);
+
+        Route::post('/gasto', [GastosController::class, 'store']);
+        Route::get('/gasto', [GastosController::class, 'index']);
+        Route::delete('/gasto/{id}', [GastosController::class, 'destroy']);
+        Route::put('/gasto', [GastosController::class, 'update']);
+
+        Route::get('/getType', [GastosController::class, 'getType']);
+        Route::get('/getmethodpay', [GastosController::class, 'getmethodpay']);
+
+
     });
 });
 

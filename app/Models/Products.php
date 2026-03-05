@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
+
 class Products extends Model
 {
     protected $table = 'productos';
@@ -31,6 +32,11 @@ class Products extends Model
         }
 
         return asset("storage/products/{$this->imagen}");
+    }
+
+    public function categoria()
+    {
+        return $this->belongsTo(Category::class, 'categoria_id');
     }
 
 }
