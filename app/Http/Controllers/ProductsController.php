@@ -23,9 +23,25 @@ class ProductsController extends Controller
             $query = $this->productsService->getAll($request);
             $perPage = $request->get('per_page', 10);
             $paginator = $query->paginate($perPage);
+            //armar los datos de la data
 
+            $data  = [];
+            foreach($paginator->items() as $item){
+                $data[] = [
+                    'id' => $item->id,
+                    'nombre' => $item->nombre,
+                    'codigo' => $item->codigo,
+                    'descripcion' => $item->descripcion,
+                    'precio_compra' => $item->precio_compra,
+                    'precio_venta' => $item->precio_venta,
+                    'stock' => $item->stock,
+                    'clave' => $item->clave,
+                    'imagen_url' => $item->imagen_url,
+                    'categoria' => $item->categoria ? $item->categoria->nombre : null,
+                ];
+            }
             return response()->json([
-                'data'          => $paginator->items(),
+                'data'          => $data,
                 'total'         => $paginator->total(),
                 'per_page'      => $paginator->perPage(),
                 'current_page'  => $paginator->currentPage(),
