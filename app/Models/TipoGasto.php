@@ -7,5 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class TipoGasto extends Model
 {
     protected $table = 'tipos_gastos';
-}
 
+    // realcion de gastos por varios tipos de gasto
+    public function gastos()
+    {
+        return $this->hasMany(Gastos::class, 'tipo_gasto_id');
+    }
+}

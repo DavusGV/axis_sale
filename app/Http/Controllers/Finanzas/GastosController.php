@@ -95,8 +95,9 @@ class GastosController extends Controller
         }
     }
 
-    public function updateType(){
-         try {
+    public function updateType()
+    {
+        try {
 
             $data = $this->request;
              // enviado por el frontend y validado previamente por middleware.
@@ -137,8 +138,9 @@ class GastosController extends Controller
             $month = $request->month;
             $year = $request->year;
 
-            $query = Gastos::with('metodoPago')
-            ->where('establecimiento_id', $establecimiento_id);
+            // incluimos las relaciones para mostrar nombres
+            $query = Gastos::with(['metodoPago', 'tipoGasto', 'user'])
+                ->where('establecimiento_id', $establecimiento_id);
 
             if ($request->filled('search')) {
                 $query->where('concepto', 'LIKE', '%' . $request->search . '%');
@@ -168,10 +170,157 @@ class GastosController extends Controller
             return $this->Success($data);
 
         } catch (Exception $e) {
-            return $this->InternalError('Error al obtener el tipo de gasto: ' . $e->getMessage());
+            return $this->InternalError('Error al obtener gastos: ' . $e->getMessage());
         }
     }
 
+    public function store()
+    {
+        try {
+            $data = $this->request->validate([
+                'tipo_gasto_id'  => 'required|integer|exists:tipos_gastos,id',
+                'metodo_pago_id' => 'required|integer|exists:metodos_pago,id',
+                'concepto'       => 'required|string|max:255',
+                'descripcion'    => 'nullable|string',
+                'monto'          => 'required|numeric|min:0.01',
+                'fecha'          => 'required|date',
+                'state'          => 'nullable|boolean',
+            ]);
+
+            $establecimiento_id = app('establishment_id');
+
+            // obtenemos el nombre del metodo de pago para el campo enum
+            $metodoPago = MetodoPago::find($data['metodo_pago_id']);
+
+            $gasto = new Gastos();
+            $gasto->establecimiento_id = $establecimiento_id;
+            $gasto->tipo_gasto_id      = $data['tipo_gasto_id'];
+            $gasto->metodo_pago_id     = $data['metodo_pago_id'];
+            $gasto->metodo_pago        = $metodoPago->nombre ?? 'efectivo';
+            $gasto->concepto           = $data['concepto'];
+            $gasto->descripcion        = $data['descripcion'] ?? null;
+            $gasto->monto              = $data['monto'];
+            $gasto->fecha              = $data['fecha'];
+            $gasto->state              = $data['state'] ?? 1;
+            $gasto->user_id            = auth()->id() ?? $this->request->user_id;
+            $gasto->save();
+
+            // cargamos las relaciones para devolver el objeto completo
+            $gasto->load(['tipoGasto', 'metodoPago']);
+
+            return $this->Success($gasto);
+
+        } catch (Exception $e) {
+            return $this->InternalError('Error al registrar el gasto: ' . $e->getMessage());
+        }
+    }
+
+    public function update()
+    {
+        try {
+            $data = $this->request->validate([
+                'id'             => 'required|integer|exists:gastos,id',
+                'tipo_gasto_id'  => 'required|integer|exists:tipos_gastos,id',
+                'metodo_pago_id' => 'required|integer|exists:metodos_pago,id',
+                'concepto'       => 'required|string|max:255',
+                'descripcion'    => 'nullable|string',
+                'monto'          => 'required|numeric|min:0.01',
+                'fecha'          => 'required|date',
+                'state'          => 'nullable|boolean',
+            ]);
+
+            $establecimiento_id = app('establishment_id');
+
+            $gasto = Gastos::where('id', $data['id'])
+                ->where('establecimiento_id', $establecimiento_id)
+                ->firstOrFail();
+
+            // obtenemos el nombre del metodo de pago para el campo enum
+            $metodoPago = MetodoPago::find($data['metodo_pago_id']);
+
+            $gasto->tipo_gasto_id  = $data['tipo_gasto_id'];
+            $gasto->metodo_pago_id = $data['metodo_pago_id'];
+            $gasto->metodo_pago    = $metodoPago->nombre ?? 'efectivo';
+            $gasto->concepto       = $data['concepto'];
+            $gasto->descripcion    = $data['descripcion'] ?? null;
+            $gasto->monto          = $data['monto'];
+            $gasto->fecha          = $data['fecha'];
+            $gasto->state          = $data['state'] ?? 1;
+            $gasto->save();
+
+            $gasto->load(['tipoGasto', 'metodoPago']);
+
+            return $this->Success($gasto);
+
+        } catch (Exception $e) {
+            return $this->InternalError('Error al actualizar el gasto: ' . $e->getMessage());
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $gasto = Gastos::where('id', $id)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->firstOrFail();
+
+            $gasto->delete();
+
+            return $this->Success('Gasto eliminado exitosamente');
+
+        } catch (Exception $e) {
+            return $this->InternalError('Error al eliminar el gasto: ' . $e->getMessage());
+        }
+    }
+    
+    // devuelve el total de gastos del mes y por tipo de gasto
+    public function resumen(Request $request)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $month = $request->month ?? now()->month;
+            $year  = $request->year ?? now()->year;
+
+            // total general del mes
+            $totalMes = Gastos::where('establecimiento_id', $establecimiento_id)
+                ->whereYear('fecha', $year)
+                ->whereMonth('fecha', $month)
+                ->where('state', 1)
+                ->sum('monto');
+
+            // desglose por tipo de gasto
+            $porTipo = Gastos::where('gastos.establecimiento_id', $establecimiento_id)
+                ->whereYear('gastos.fecha', $year)
+                ->whereMonth('gastos.fecha', $month)
+                ->where('gastos.state', 1)
+                ->join('tipos_gastos', 'gastos.tipo_gasto_id', '=', 'tipos_gastos.id')
+                ->selectRaw('tipos_gastos.name as tipo, SUM(gastos.monto) as total')
+                ->groupBy('tipos_gastos.id', 'tipos_gastos.name')
+                ->orderByDesc('total')
+                ->get();
+
+            // cantidad de gastos del mes
+            $cantidadGastos = Gastos::where('establecimiento_id', $establecimiento_id)
+                ->whereYear('fecha', $year)
+                ->whereMonth('fecha', $month)
+                ->where('state', 1)
+                ->count();
+
+            return $this->Success([
+                'total_mes'        => round($totalMes, 2),
+                'cantidad_gastos'  => $cantidadGastos,
+                'por_tipo'         => $porTipo,
+                'mes'              => $month,
+                'anio'             => $year,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->InternalError('Error al obtener resumen de gastos: ' . $e->getMessage());
+        }
+    }
 
     public function getType()
     {
@@ -204,7 +353,7 @@ class GastosController extends Controller
             return $this->Success($query);
 
         } catch (Exception $e) {
-            return $this->InternalError('Error al obtener el tipo de gasto: ' . $e->getMessage());
+            return $this->InternalError('Error al obtener metodos de pago: ' . $e->getMessage());
         }
     }
 

@@ -117,7 +117,8 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/tgasto', [GastosController::class, 'indexType']);
         Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
         Route::put('/tgasto', [GastosController::class, 'updateType']);
-
+        
+        Route::get('/gasto/resumen', [GastosController::class, 'resumen']);
         Route::post('/gasto', [GastosController::class, 'store']);
         Route::get('/gasto', [GastosController::class, 'index']);
         Route::delete('/gasto/{id}', [GastosController::class, 'destroy']);

@@ -12,5 +12,16 @@ class Gastos extends Model
     {
         return $this->belongsTo(MetodoPago::class, 'metodo_pago_id');
     }
-}
 
+    // relacion con el tipo de gasto
+    public function tipoGasto()
+    {
+        return $this->belongsTo(TipoGasto::class, 'tipo_gasto_id');
+    }
+
+    // relacion con el usuario que registro el gasto
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+}
