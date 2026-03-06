@@ -13,6 +13,12 @@ use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\EstablecimientoController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\Finanzas\IngresosControlador;
+use App\Http\Controllers\Finanzas\GastosController;
+
+use App\Http\Controllers\ClientesController;
+use App\Http\Controllers\PlanesPagoController;
+use App\Http\Controllers\PagosPlanController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -107,7 +113,44 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
      Route::prefix('finance')->group(function () {
         Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);
+        Route::post('/tgasto', [GastosController::class, 'storeType']);
+        Route::get('/tgasto', [GastosController::class, 'indexType']);
+        Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
+        Route::put('/tgasto', [GastosController::class, 'updateType']);
+        
+        Route::get('/gasto/resumen', [GastosController::class, 'resumen']);
+        Route::post('/gasto', [GastosController::class, 'store']);
+        Route::get('/gasto', [GastosController::class, 'index']);
+        Route::delete('/gasto/{id}', [GastosController::class, 'destroy']);
+        Route::put('/gasto', [GastosController::class, 'update']);
+
+        Route::get('/getType', [GastosController::class, 'getType']);
+        Route::get('/getmethodpay', [GastosController::class, 'getmethodpay']);
+
+
     });
+
+    // clientes
+    Route::prefix('clientes')->group(function () {
+        Route::get('/',             [ClientesController::class, 'index']);
+        Route::post('/',            [ClientesController::class, 'store']);
+        Route::get('/buscar',       [ClientesController::class, 'buscar']);
+        Route::get('/{id}',         [ClientesController::class, 'show']);
+        Route::post('/{id}',        [ClientesController::class, 'update']);
+        Route::delete('/{id}',      [ClientesController::class, 'destroy']);
+    });
+
+    Route::prefix('planes-pago')->group(function () {
+        Route::get('/',       [PlanesPagoController::class, 'index']);
+        Route::post('/',      [PlanesPagoController::class, 'store']);
+        Route::get('/{id}',   [PlanesPagoController::class, 'show']);
+    });
+
+    Route::prefix('planes-pago/{planId}/pagos')->group(function () {
+        Route::get('/',  [PagosPlanController::class, 'index']);
+        Route::post('/', [PagosPlanController::class, 'store']);
+    });
+
 });
 
 
