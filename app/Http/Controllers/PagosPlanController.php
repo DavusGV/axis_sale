@@ -71,7 +71,6 @@ class PagosPlanController extends Controller
             // validacion con monto maximo = saldo pendiente
             $request->validate([
                 'monto_pagado' => 'required|numeric|min:0.01|max:' . $plan->saldo_pendiente,
-                'metodo_pago'  => 'nullable|string',
                 'notas'        => 'nullable|string',
                 'usuario_id'   => 'required|integer|exists:users,id',
             ]);
@@ -115,7 +114,8 @@ class PagosPlanController extends Controller
             $pago->saldo_anterior    = $saldoAnterior;
             $pago->saldo_despues     = $saldoDespues;
             $pago->fecha_pago        = Carbon::now()->toDateString();
-            $pago->metodo_pago       = $request->metodo_pago ?? 'efectivo';
+            $pago->metodo_pago       = 'credito'; // siempre credito para identificarlo en ingresos
+            $pago->metodo_pago_id    = null;      // no aplica FK de metodos_pago
             $pago->notas             = $request->notas;
             $pago->save();
 

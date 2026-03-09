@@ -107,6 +107,7 @@ class VentasController extends Controller
             $venta->pago                = $request->pago;
             $venta->cambio              = $request->cambio;
             $venta->metodo_pago         = $request->metodo_pago;
+            $venta->metodo_pago_id      = $request->metodo_pago_id ?? null; // id del catalogo metodos_pago
             $venta->subtotal            = $request->total; // total sin descuentos, precio original
             $venta->created_at          = Carbon::now();
 

@@ -18,6 +18,7 @@ use App\Http\Controllers\Finanzas\GastosController;
 use App\Http\Controllers\ClientesController;
 use App\Http\Controllers\PlanesPagoController;
 use App\Http\Controllers\PagosPlanController;
+use App\Http\Controllers\Finanzas\BalanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -73,6 +74,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
     Route::prefix('reportes')->group(function () {
         Route::post('/ventas', [ReportesController::class, 'ventasReport']);
+        Route::post('/creditos', [ReportesController::class, 'creditosReport']);
     });
 
      Route::prefix('products')->group(function () {
@@ -128,6 +130,11 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/getmethodpay', [GastosController::class, 'getmethodpay']);
 
 
+    });
+
+    Route::prefix('finance/balance')->group(function () {
+        Route::get('mensual',   [BalanceController::class, 'balanceMensual']);
+        Route::get('historial', [BalanceController::class, 'historial']);
     });
 
     // clientes
