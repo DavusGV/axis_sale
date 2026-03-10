@@ -16,7 +16,8 @@ class ProductsService
         // enviado por el frontend y validado previamente por middleware.
         $establecimiento_id = app('establishment_id');
 
-        $query = Products::where('establecimiento_id', $establecimiento_id);
+        $query = Products::with('categoria')->
+        where('establecimiento_id', $establecimiento_id);
 
         // creamos los filtros de busqueda
         if ($request->filled('search')) {
@@ -60,11 +61,11 @@ class ProductsService
             Storage::disk('public')->putFileAs(
                 'products/', $data['imagen'], $filename
             );
-            
+
             // guardamos solo el nombre en la DB
             $data['imagen'] = $filename;
         }
-        
+
         return Products::create($data);
     }
 

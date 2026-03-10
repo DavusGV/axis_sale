@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
+
 class Products extends Model
 {
     protected $table = 'productos';
@@ -27,10 +28,15 @@ class Products extends Model
     public function getImagenUrlAttribute()
     {
         if (!$this->imagen) {
-            return asset('images/no-image.png'); // opcional
+            return asset('images/cart.png'); // opcional
         }
 
         return asset("storage/products/{$this->imagen}");
+    }
+
+    public function categoria()
+    {
+        return $this->belongsTo(Category::class, 'categoria_id');
     }
 
 }
