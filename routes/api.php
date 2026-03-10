@@ -13,8 +13,6 @@ use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\EstablecimientoController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\Finanzas\IngresosControlador;
-
-use App\Http\Controllers\VentasPdf\VentasPdfController;
 use App\Http\Controllers\Finanzas\GastosController;
 
 use App\Http\Controllers\ClientesController;
@@ -107,13 +105,11 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     Route::prefix('cajas')->group(function () {
         Route::get('/', [CajasController::class, 'index']);
         Route::get('/{boxId}/history', [CajasController::class, 'showHistoryBox']);
+        Route::get('/{historyId}/ventas', [CajasController::class, 'showHistorySale']);
         Route::post('open', [CajasController::class, 'open']);
         Route::post('close', [CajasController::class, 'close']);
     });
 
-    Route::prefix('ventas-pdf')->group(function () {
-        Route::get('/box-history/{historyId}', [VentasPdfController::class, 'showSaleForBox']);
-    });
 
      Route::prefix('finance')->group(function () {
         Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);

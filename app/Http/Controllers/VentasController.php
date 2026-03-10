@@ -35,7 +35,6 @@ class VentasController extends Controller
             $establecimiento_id = app('establishment_id');
             $query = Products::where('establecimiento_id', $establecimiento_id);
 
-
             // filtro de busqueda
             if ($request ->filled('search')) {
                 $search = $request->search;
@@ -45,8 +44,6 @@ class VentasController extends Controller
                     ->orWhere('codigo', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%");
                 });
-            } else {
-                $query->where('stock','>', 0);
             }
 
             if ($request->filled('categoria_id')) {

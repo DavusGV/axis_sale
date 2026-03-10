@@ -3,7 +3,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\HistorialCajas;
 
 class Cajas extends Model
 {
@@ -13,10 +12,5 @@ class Cajas extends Model
         'nombre',
         'abierta',
     ];
-
-    public function historiales()
-    {
-        return $this->hasMany(HistorialCajas::class, 'caja_id');
-    }
 }
 
