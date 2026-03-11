@@ -196,7 +196,7 @@ class GastosController extends Controller
             $gasto->establecimiento_id = $establecimiento_id;
             $gasto->tipo_gasto_id      = $data['tipo_gasto_id'];
             $gasto->metodo_pago_id     = $data['metodo_pago_id'];
-            $gasto->metodo_pago        = $metodoPago->nombre ?? 'efectivo';
+            //$gasto->metodo_pago        = $metodoPago->nombre ?? 'efectivo';
             $gasto->concepto           = $data['concepto'];
             $gasto->descripcion        = $data['descripcion'] ?? null;
             $gasto->monto              = $data['monto'];
@@ -274,7 +274,7 @@ class GastosController extends Controller
             return $this->InternalError('Error al eliminar el gasto: ' . $e->getMessage());
         }
     }
-    
+
     // devuelve el total de gastos del mes y por tipo de gasto
     public function resumen(Request $request)
     {
