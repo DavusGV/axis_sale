@@ -16,5 +16,20 @@ class Ventas extends Model
         'cambio',
         'metodo_pago',
     ];
+
+    public function detalles()
+    {
+        return $this->hasMany(VentasDetalles::class, 'venta_id');
+    }
+
+    public function usuario()
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function historialCaja()
+    {
+        return $this->belongsTo(HistorialCajas::class, 'historial_caja_id');
+    }
 }
 
