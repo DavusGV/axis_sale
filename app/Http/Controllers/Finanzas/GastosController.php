@@ -189,14 +189,10 @@ class GastosController extends Controller
 
             $establecimiento_id = app('establishment_id');
 
-            // obtenemos el nombre del metodo de pago para el campo enum
-            $metodoPago = MetodoPago::find($data['metodo_pago_id']);
-
             $gasto = new Gastos();
             $gasto->establecimiento_id = $establecimiento_id;
             $gasto->tipo_gasto_id      = $data['tipo_gasto_id'];
             $gasto->metodo_pago_id     = $data['metodo_pago_id'];
-            //$gasto->metodo_pago        = $metodoPago->nombre ?? 'efectivo';
             $gasto->concepto           = $data['concepto'];
             $gasto->descripcion        = $data['descripcion'] ?? null;
             $gasto->monto              = $data['monto'];
@@ -235,12 +231,8 @@ class GastosController extends Controller
                 ->where('establecimiento_id', $establecimiento_id)
                 ->firstOrFail();
 
-            // obtenemos el nombre del metodo de pago para el campo enum
-            $metodoPago = MetodoPago::find($data['metodo_pago_id']);
-
             $gasto->tipo_gasto_id  = $data['tipo_gasto_id'];
             $gasto->metodo_pago_id = $data['metodo_pago_id'];
-            $gasto->metodo_pago    = $metodoPago->nombre ?? 'efectivo';
             $gasto->concepto       = $data['concepto'];
             $gasto->descripcion    = $data['descripcion'] ?? null;
             $gasto->monto          = $data['monto'];
