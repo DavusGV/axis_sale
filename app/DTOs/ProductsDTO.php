@@ -30,6 +30,7 @@ class ProductsDTO
                 'categoria_id' => 'required|exists:categorias,id',
                 'precio_compra' => 'required|numeric|min:0',
                 'precio_venta' => 'required|numeric|min:0',
+                'iva' => 'nullable|numeric|min:0|max:100',
                 'stock' => 'required|integer|min:0',
                 'clave' => 'nullable|string|max:100|unique:productos,clave',
                 'imagen' => 'nullable'
@@ -42,6 +43,7 @@ class ProductsDTO
                 'categoria_id' => 'sometimes|exists:categorias,id',
                 'precio_compra' => 'sometimes|numeric|min:0',
                 'precio_venta' => 'sometimes|numeric|min:0',
+                'iva' => 'nullable|numeric|min:0|max:100',
                 'stock' => 'sometimes|integer|min:0',
                 'clave' => 'sometimes|string|max:255',
                 'imagen' => 'nullable',

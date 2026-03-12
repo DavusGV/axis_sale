@@ -34,6 +34,7 @@ class ProductsController extends Controller
                     'descripcion' => $item->descripcion,
                     'precio_compra' => $item->precio_compra,
                     'precio_venta' => $item->precio_venta,
+                    'iva' => $item->iva,
                     'stock' => $item->stock,
                     'clave' => $item->clave,
                     'imagen_url' => $item->imagen_url,
@@ -60,29 +61,29 @@ class ProductsController extends Controller
 
 
     public function store(Request $request)
-{
-    DB::beginTransaction();
-    try {
-        $data = ProductsDTO::validate($request->all(), 'store');
+    {
+        DB::beginTransaction();
+        try {
+            $data = ProductsDTO::validate($request->all(), 'store');
 
-        // Adjuntar archivo si existe
-        if ($request->hasFile('imagen')) {
-            $data['imagen'] = $request->file('imagen');
+            // Adjuntar archivo si existe
+            if ($request->hasFile('imagen')) {
+                $data['imagen'] = $request->file('imagen');
+            }
+            $product = $this->productsService->create($data);
+            DB::commit();
+            return $this->Success($product);
+
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError([ 'error' => 'Error creating product', 'message' => $e->getMessage()]);
         }
-        $product = $this->productsService->create($data);
-        DB::commit();
-        return $this->Success($product);
-
-    } catch (ValidationException $e) {
-        DB::rollBack();
-        return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()
-        ]);
-
-    } catch (Exception $e) {
-        DB::rollBack();
-        return $this->InternalError([ 'error' => 'Error creating product', 'message' => $e->getMessage()]);
     }
-}
 
 
     public function update(Request $request, $id)

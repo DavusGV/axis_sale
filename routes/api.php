@@ -20,6 +20,7 @@ use App\Http\Controllers\ClientesController;
 use App\Http\Controllers\PlanesPagoController;
 use App\Http\Controllers\PagosPlanController;
 use App\Http\Controllers\Finanzas\BalanceController;
+use App\Http\Controllers\ConfiguracionEstablecimientoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,12 +38,12 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 });
     
-    // Perfil del usuario autenticado
-    Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
-        Route::get('/',              [PerfilController::class, 'show']);
-        Route::put('/',              [PerfilController::class, 'update']);
-        Route::post('/foto',         [PerfilController::class, 'uploadFoto']);
-    });
+// Perfil del usuario autenticado
+Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
+    Route::get('/',              [PerfilController::class, 'show']);
+    Route::put('/',              [PerfilController::class, 'update']);
+    Route::post('/foto',         [PerfilController::class, 'uploadFoto']);
+});
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
 
@@ -78,6 +79,12 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/products', [VentasController::class, 'index']);
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
+        Route::get('/{id}/ticket', [VentasController::class, 'ticket']);
+    });
+
+    Route::prefix('configuracion')->group(function () {
+        Route::get('/', [ConfiguracionEstablecimientoController::class, 'show']);
+        Route::post('/', [ConfiguracionEstablecimientoController::class, 'update']);
     });
 
     Route::prefix('reportes')->group(function () {

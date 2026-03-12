@@ -19,7 +19,8 @@ class Products extends Model
         'precio_venta',
         'stock',
         'clave',
-        'imagen'
+        'imagen',
+        'iva',
     ];
 
     // para construir la ruta de la imagen

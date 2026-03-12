@@ -17,10 +17,25 @@ class Ventas extends Model
         'cambio',
         'metodo_pago',
         'metodo_pago_id',
+        'folio',
+        'modo_iva',
+        'iva_total',
     ];
     public function planPago()
     {
         return $this->hasOne(PlanPago::class, 'venta_id');
+    }
+
+    // detalles de los productos vendidos
+    public function detalles()
+    {
+        return $this->hasMany(VentasDetalles::class, 'venta_id');
+    }
+
+    // establecimiento donde se realizo la venta
+    public function establecimiento()
+    {
+        return $this->belongsTo(Establecimiento::class, 'establecimiento_id');
     }
 }
 

@@ -11,7 +11,8 @@ class Establecimiento extends Model
         'nombre',
         'direccion',
         'telefono',
-        'email'
+        'email',
+        'logo',  
     ];
 
 
@@ -21,5 +22,11 @@ class Establecimiento extends Model
             User::class,
             'establecimiento_user'
         )->withTimestamps();
+    }
+
+    // configuracion del establecimiento
+    public function configuracion()
+    {
+        return $this->hasOne(ConfiguracionEstablecimiento::class, 'establecimiento_id');
     }
 }

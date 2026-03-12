@@ -16,6 +16,7 @@ class VentasDetalles extends Model
         'tipo_descuento',
         'descuento',
         'descuento_aplicado',
+        'iva_porcentaje',
     ];
 
     public function producto()
