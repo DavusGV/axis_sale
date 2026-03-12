@@ -12,6 +12,7 @@ use App\Http\Controllers\VentasController;
 use App\Http\Controllers\ReportesController;
 use App\Http\Controllers\EstablecimientoController;
 use App\Http\Controllers\UsersController;
+use App\Http\Controllers\PerfilController;
 use App\Http\Controllers\Finanzas\IngresosControlador;
 use App\Http\Controllers\Finanzas\GastosController;
 
@@ -20,6 +21,7 @@ use App\Http\Controllers\VentasPdf\SaleHistoryBoxPdfController;
 use App\Http\Controllers\ClientesController;
 use App\Http\Controllers\PlanesPagoController;
 use App\Http\Controllers\PagosPlanController;
+use App\Http\Controllers\Finanzas\BalanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +38,13 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 
 });
+    
+    // Perfil del usuario autenticado
+    Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
+        Route::get('/',              [PerfilController::class, 'show']);
+        Route::put('/',              [PerfilController::class, 'update']);
+        Route::post('/foto',         [PerfilController::class, 'uploadFoto']);
+    });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
 
@@ -75,6 +84,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
     Route::prefix('reportes')->group(function () {
         Route::post('/ventas', [ReportesController::class, 'ventasReport']);
+        Route::post('/creditos', [ReportesController::class, 'creditosReport']);
     });
 
      Route::prefix('products')->group(function () {
@@ -103,6 +113,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('{id}/establecimientos', [UsersController::class, 'assignEstablecimiento']);
         Route::delete('{id}/establecimientos/{establecimientoId}', [UsersController::class, 'unassignEstablecimiento']);
     });
+
 
     Route::prefix('cajas')->group(function () {
         Route::get('/', [CajasController::class, 'index']);
@@ -134,6 +145,11 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/getmethodpay', [GastosController::class, 'getmethodpay']);
 
 
+    });
+
+    Route::prefix('finance/balance')->group(function () {
+        Route::get('mensual',   [BalanceController::class, 'balanceMensual']);
+        Route::get('historial', [BalanceController::class, 'historial']);
     });
 
     // clientes

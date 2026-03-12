@@ -3,6 +3,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\PlanPago;
 
 class Ventas extends Model
 {
@@ -15,21 +16,11 @@ class Ventas extends Model
         'pago',
         'cambio',
         'metodo_pago',
+        'metodo_pago_id',
     ];
-
-    public function detalles()
+    public function planPago()
     {
-        return $this->hasMany(VentasDetalles::class, 'venta_id');
-    }
-
-    public function usuario()
-    {
-        return $this->belongsTo(User::class, 'usuario_id');
-    }
-
-    public function historialCaja()
-    {
-        return $this->belongsTo(HistorialCajas::class, 'historial_caja_id');
+        return $this->hasOne(PlanPago::class, 'venta_id');
     }
 }
 

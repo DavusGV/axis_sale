@@ -17,6 +17,7 @@ class PagoPlan extends Model
         'saldo_despues',
         'fecha_pago',
         'metodo_pago',
+        'metodo_pago_id',
         'notas',
     ];
 

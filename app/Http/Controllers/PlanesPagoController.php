@@ -123,7 +123,13 @@ class PlanesPagoController extends Controller
             $totalFinanciado = $totalAPagar - $anticipo;
 
             // cuota redondeada, el sistema ajusta centavos en el ultimo pago
-            $montoCuota = round($totalFinanciado / $request->num_plazos, 2);
+            $montoCuota = floor($totalFinanciado / $request->num_plazos);
+            // si el total es menor al numero de plazos, la cuota minima es 1
+            if ($montoCuota < 1 && $totalFinanciado > 0) {
+                $montoCuota = 1;
+            }
+            // lo que pagaria el ultimo plazo (puede ser menor o mayor que la cuota regular)
+            $montoUltimaCuota = $totalFinanciado - ($montoCuota * ($request->num_plazos - 1));
 
             $fechaInicio = Carbon::parse($request->fecha_inicio);
 
@@ -167,10 +173,11 @@ class PlanesPagoController extends Controller
             DB::commit();
 
             return $this->Success([
-                'message'    => 'Plan de pago creado exitosamente.',
-                'plan'       => $plan->load(['cliente', 'venta']),
-                'monto_cuota'=> $montoCuota,
-                'total_real' => $montoCuota * $request->num_plazos,
+                'message'             => 'Plan de pago creado exitosamente.',
+                'plan'                => $plan->load(['cliente', 'venta']),
+                'monto_cuota'         => $montoCuota,
+                'monto_ultima_cuota'  => $montoUltimaCuota,
+                'total_real'          => ($montoCuota * ($request->num_plazos - 1)) + $montoUltimaCuota,
             ]);
 
         } catch (ValidationException $ve) {
@@ -196,7 +203,12 @@ class PlanesPagoController extends Controller
                 return $this->BadRequest('Plan de pago no encontrado.');
             }
 
-            return $this->Success(['plan' => $plan]);
+            $montoUltimaCuota = $plan->total_financiado - ($plan->monto_cuota * ($plan->num_plazos - 1));
+
+            return $this->Success([
+                'plan'               => $plan,
+                'monto_ultima_cuota' => $montoUltimaCuota,
+            ]);
 
         } catch (Exception $e) {
             return $this->InternalError(['error' => 'Error al obtener plan de pago.', 'details' => $e->getMessage()]);
