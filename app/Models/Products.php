@@ -21,10 +21,15 @@ class Products extends Model
         'clave',
         'imagen',
         'iva',
+        'es_servicio',
     ];
 
     // para construir la ruta de la imagen
     protected $appends = ['imagen_url'];
+
+    protected $casts = [
+        'es_servicio' => 'boolean',
+    ];
 
     public function getImagenUrlAttribute()
     {

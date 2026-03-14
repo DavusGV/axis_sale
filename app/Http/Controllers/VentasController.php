@@ -163,7 +163,7 @@ class VentasController extends Controller
                 }
 
                 // validamos si hay stock disponible
-                if ($producto->stock < $detalle['cantidad']) {
+                if (!$producto->es_servicio && $producto->stock < $detalle['cantidad']) {
                     DB::rollBack();
                     return $this->BadRequest([
                         'message'      => "Stock insuficiente del producto: {$producto->nombre}",
@@ -171,9 +171,11 @@ class VentasController extends Controller
                     ]);
                 }
 
-                // restamos el stock disponible
-                $producto->stock -= $detalle['cantidad'];
-                $producto->save();
+                // solo restamos stock si no es servicio
+                if (!$producto->es_servicio) {
+                    $producto->stock -= $detalle['cantidad'];
+                    $producto->save();
+                }
 
                 $ventaDetalle = new VentasDetalles();
                 $ventaDetalle->venta_id           = $venta->id;
