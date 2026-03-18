@@ -130,7 +130,7 @@ class PagosPlanController extends Controller
 
             // si lo abonado acumulado cubre lo que corresponde hasta esta cuota, avanza la fecha
             if ($totalAbonado >= $montoEsperado || $saldoDespues <= 0) {
-                // dias: el intervalo es igual al num_plazos (ej: 4 plazos = cada 4 dias)
+                // dias: usa el intervalo configurado en intervalo_dias
                 // semanal: siempre avanza 7 dias
                 // mensual: avanza al mismo dia del mes siguiente
                 if ($plan->tipo_plazo === 'mensual') {
@@ -138,7 +138,8 @@ class PagosPlanController extends Controller
                 } elseif ($plan->tipo_plazo === 'semanal') {
                     $plan->fecha_proximo_pago = Carbon::parse($plan->fecha_proximo_pago)->addWeek();
                 } else {
-                    $plan->fecha_proximo_pago = Carbon::parse($plan->fecha_proximo_pago)->addDays($plan->num_plazos);
+                    // dias: usa intervalo_dias para avanzar la fecha
+                    $plan->fecha_proximo_pago = Carbon::parse($plan->fecha_proximo_pago)->addDays($plan->intervalo_dias);
                 }
             }
 

@@ -22,6 +22,7 @@ class PlanPago extends Model
         'total_financiado',
         'num_plazos',
         'tipo_plazo',
+        'intervalo_dias',
         'monto_cuota',
         'fecha_inicio',
         'fecha_proximo_pago',
