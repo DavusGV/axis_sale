@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     Route::prefix('configuracion')->group(function () {
         Route::get('/', [ConfiguracionEstablecimientoController::class, 'show']);
         Route::post('/', [ConfiguracionEstablecimientoController::class, 'update']);
+        Route::post('/logo', [ConfiguracionEstablecimientoController::class, 'updateLogo']);
     });
 
     Route::prefix('reportes')->group(function () {

@@ -298,10 +298,20 @@ class VentasController extends Controller
                 'planPago.cliente',    // plan de credito y cliente si aplica
             ])->findOrFail($id);
 
-            // construimos el logo url solo si existe el archivo
-            $logoUrl = null;
+            // obtenemos la configuracion del establecimiento para formatos del ticket
+            $config = ConfiguracionEstablecimiento::where('establecimiento_id', $venta->establecimiento_id)->first();
+            $formatoHora  = $config->formato_hora ?? '12h';
+            $formatoFecha = $config->formato_fecha ?? 'd/m/Y';
+
+            // convertimos el logo a base64 para evitar problemas de CORS en el frontend
+            $logoBase64 = null;
             if ($venta->establecimiento && $venta->establecimiento->logo) {
-                $logoUrl = asset('storage/' . $venta->establecimiento->logo);
+                $logoPath = storage_path('app/public/' . $venta->establecimiento->logo);
+                if (file_exists($logoPath)) {
+                    $contenido = file_get_contents($logoPath);
+                    $mime      = mime_content_type($logoPath);
+                    $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+                }
             }
 
             // armamos los productos con los datos que necesita el ticket
@@ -342,9 +352,10 @@ class VentasController extends Controller
                     'saldo_pendiente'  => $plan->saldo_pendiente,
                     'num_plazos'       => $plan->num_plazos,
                     'tipo_plazo'       => $plan->tipo_plazo,
+                    'intervalo_dias'   => $plan->intervalo_dias,
                     'monto_cuota'      => $plan->monto_cuota,
-                    'fecha_inicio'     => $plan->fecha_inicio,
-                    'fecha_proximo_pago' => $plan->fecha_proximo_pago,
+                    'fecha_inicio'       => Carbon::parse($plan->fecha_inicio)->format($formatoFecha),
+                    'fecha_proximo_pago' => Carbon::parse($plan->fecha_proximo_pago)->format($formatoFecha),
                     'interes_aplicado' => $plan->interes_aplicado,
                 ];
             }
@@ -355,14 +366,17 @@ class VentasController extends Controller
                     'folio'            => $venta->folio,
                     'modo_iva'         => $venta->modo_iva,
                     'iva_total'        => $venta->iva_total,
-                    'fecha'            => $venta->created_at->format('d/m/Y H:i'),
+                    'fecha'            => $venta->created_at->format($formatoFecha . ' ' . ($formatoHora === '12h' ? 'h:i A' : 'H:i')),
                     'metodo_pago'      => $venta->metodo_pago,
                     'pago'             => $venta->pago,
                     'cambio'           => $venta->cambio,
                     'subtotal'         => $venta->subtotal,
                     'total'            => $venta->total,
                     'establecimiento'  => optional($venta->establecimiento)->nombre,
-                    'logo_url'         => $logoUrl,
+                    'logo_url'         => $logoBase64,
+                    'formato_hora'     => $formatoHora,
+                    'formato_fecha'    => $formatoFecha,
+                    'num_cuenta'       => $config->num_cuenta ?? null,
                     'productos'        => $productos,
                     'es_credito'       => $venta->planPago !== null,
                     'plan_pago'        => $planPago,

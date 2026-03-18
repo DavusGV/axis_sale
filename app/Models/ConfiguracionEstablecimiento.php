@@ -13,6 +13,9 @@ class ConfiguracionEstablecimiento extends Model
         'imprimir_ticket_venta',
         'impresora_ancho',
         'impresora_alto',
+        'formato_hora',
+        'formato_fecha',
+        'num_cuenta',
     ];
 
     protected $casts = [

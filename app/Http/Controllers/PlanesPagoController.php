@@ -76,6 +76,7 @@ class PlanesPagoController extends Controller
                 'interes_tipo'  => 'nullable|in:porcentaje,monto',
                 'interes_valor' => 'nullable|numeric|min:0',
                 'anticipo'      => 'nullable|numeric|min:0',
+                'intervalo_dias'=> 'nullable|integer|min:1|required_if:tipo_plazo,dias',
                 'num_plazos'    => 'required|integer|min:1',
                 'tipo_plazo'    => 'required|in:semanal,mensual,dias',
                 'fecha_inicio'  => 'required|date',
@@ -142,8 +143,8 @@ class PlanesPagoController extends Controller
             } elseif ($request->tipo_plazo === 'semanal') {
                 $fechaProximoPago = $fechaInicio->copy()->addWeek();
             } else {
-                // dias: el intervalo es igual al num_plazos
-                $fechaProximoPago = $fechaInicio->copy()->addDays($request->num_plazos);
+                // dias: el intervalo lo define intervalo_dias, num_plazos es la cantidad de cuotas
+                $fechaProximoPago = $fechaInicio->copy()->addDays($request->intervalo_dias);
             }
 
             $plan = new PlanPago();
@@ -161,6 +162,7 @@ class PlanesPagoController extends Controller
             $plan->total_financiado   = $totalFinanciado;
             $plan->num_plazos         = $request->num_plazos;
             $plan->tipo_plazo         = $request->tipo_plazo;
+            $plan->intervalo_dias     = $request->tipo_plazo === 'dias' ? $request->intervalo_dias : null;
             $plan->monto_cuota        = $montoCuota;
             $plan->fecha_inicio       = $fechaInicio;
             $plan->fecha_proximo_pago = $fechaProximoPago;
