@@ -2,84 +2,167 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Cierre de Caja</title>
+<title>Corte de Caja</title>
 
 <style>
 
 body{
     font-family: DejaVu Sans, sans-serif;
-    font-size:12px;
-    margin:20px;
+    font-size:8px;
+    color:#111827;
 }
 
-/* encabezado */
+/* HEADER FACTURA */
 
 .header{
+    width:100%;
+    margin-bottom:8px;
+}
+
+.header-table{
+    width:100%;
+}
+
+.logo{
+    width:70px;
+}
+
+.company-info{
+    text-align:right;
+    font-size:9px;
+}
+
+.company-name{
+    font-size:14px;
+    font-weight:bold;
     text-align:center;
-    margin-bottom:20px;
 }
 
-.header h2{
-    margin:0;
+.report-title-box{
+    border:1px solid #000;
+    text-align:center;
+    padding:4px;
+    font-weight:bold;
+    font-size:11px;
+    margin-top:4px;
 }
 
-/* grid estilo bootstrap */
+/* INFO */
 
-.row{
+.info{
     width:100%;
-    clear:both;
+    border:1px solid #ccc;
+    margin-top:6px;
 }
 
-.col-6{
-    width:50%;
-    float:left;
+.info td{
+    padding:4px;
+    font-size:9px;
 }
 
-.col-12{
-    width:100%;
+/* SECTION */
+
+.section-title{
+    margin-top:10px;
+    font-weight:bold;
+    font-size:10px;
+    border-bottom:1px solid #000;
+    padding-bottom:2px;
+    text-align: center;
 }
 
-/* tablas */
+/* TABLE */
 
 .table{
     width:100%;
     border-collapse:collapse;
-    margin-top:10px;
+    margin-top:4px;
 }
 
 .table th{
-    background:#f2f2f2;
-    border:1px solid #ddd;
-    padding:6px;
+    background:#e5e7eb;
+    border:1px solid #ccc;
+    padding:1px;
+    font-size:8px;
+    text-transform:uppercase;
 }
 
 .table td{
     border:1px solid #ddd;
+    padding:1px;
+}
+
+.right{ text-align:right; }
+.center{ text-align:center; }
+
+/* META */
+
+.sale-meta{
+    font-size:9px;
+    margin-bottom:2px;
+}
+
+.sale-total{ 
+    text-align:right; 
+    font-weight:bold; 
+    font-size:10px;
+}
+
+.total-general {
+    margin-top:10px;
     padding:6px;
-}
-
-.text-right{
+    border-top:2px solid #000;
     text-align:right;
+    font-weight:bold;
+    font-size:12px;
 }
 
-.text-center{
+
+/* BADGE MÉTODO */
+
+.badge{
+    padding:2px 6px;
+    border:1px solid #000;
+    font-size:9px;
+    font-weight:bold;
+}
+
+/* RESUMEN FACTURA */
+
+.summary-container{
+    margin-top:5px;
+    width:50%;        
+    margin-left:auto;
+}
+
+.summary-table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+.summary-table td{
+    border:1px solid #ccc;
+    padding:2px;
+    font-size:10px;
+}
+
+.summary-title{
+    background:#f3f4f6;
+    font-weight:bold;
+}
+
+.summary-final{
+    font-weight:bold;
+    font-size:11px;
+}
+
+/* FOOTER */
+
+.footer{
+    margin-top:10px;
     text-align:center;
-}
-
-/* resumen */
-
-.summary{
-    width:40%;
-    float:right;
-    margin-top:20px;
-}
-
-.summary td{
-    padding:6px;
-}
-
-.summary tr td:last-child{
-    text-align:right;
+    font-size:8px;
+    color:#6b7280;
 }
 
 </style>
@@ -89,181 +172,147 @@ body{
 <body>
 
 <!-- HEADER -->
-
 <div class="header">
-<h2>REPORTE DE CIERRE DE CAJA</h2>
-<p>Historial #{{ $historial->id }}</p>
+
+    <table class="header-table">
+        <tr>
+
+            <!-- LOGO -->
+            <td style="width:80px;">
+                @if($empresa['logo'])
+                    <img src="data:image/png;base64,{{ $empresa['logo'] }}" class="logo">
+                @endif
+            </td>
+
+            <!-- EMPRESA CENTRADA -->
+            <td style="text-align:center;">
+                <div class="company-name">
+                    {{ $empresa['nombre'] }}
+                </div>
+                <div>
+                    Corte de caja
+                </div>
+                <div>
+                    {{ now() }}
+                </div>
+            </td>
+
+        </tr>
+    </table>
+
+    <div class="report-title-box">
+        REPORTE DE CIERRE DE CAJA
+    </div>
+
 </div>
 
-<!-- INFO CAJA -->
+<!-- INFO GENERAL -->
+<table class="info">
+    <tr>
+        <td><strong>Folio:</strong> #{{ $historial->id }}</td>
+        <td><strong>Apertura:</strong> {{ $historial->fecha_apertura }}</td>
+        <td><strong>Cierre:</strong> {{ $historial->fecha_cierre }}</td>
+        <td><strong>Cajero:</strong> {{ $historial->usuario->name ?? 'Admin' }}</td>
+    </tr>
 
-<div class="row">
-
-<div class="col-6">
-<strong>Fecha apertura:</strong><br>
-{{ $historial->created_at }}
-</div>
-
-<div class="col-6">
-<strong>Fecha cierre:</strong><br>
-{{ $historial->updated_at }}
-</div>
-
-</div>
-
-<!-- RESUMEN -->
-
-<h3>Resumen</h3>
-
-<table class="table">
-
-<thead>
-
-<tr>
-<th>Total general</th>
-<th>Efectivo</th>
-<th>Transferencia</th>
-<th>Descuentos</th>
-<th>Productos vendidos</th>
-</tr>
-
-</thead>
-
-<tbody>
-
-<tr>
-
-<td class="text-right">
-${{ number_format($resumen['total_general'],2) }}
-</td>
-
-<td class="text-right">
-${{ number_format($resumen['total_efectivo'],2) }}
-</td>
-
-<td class="text-right">
-${{ number_format($resumen['total_transferencia'],2) }}
-</td>
-
-<td class="text-right">
-${{ number_format($resumen['total_descuentos'],2) }}
-</td>
-
-<td class="text-center">
-{{ $resumen['total_productos_vendidos'] }}
-</td>
-
-</tr>
-
-</tbody>
-
+    <tr>
+        <td><strong>Saldo inicial:</strong> ${{ number_format($historial->saldo_inicial,2) }}</td>
+        <td><strong>Saldo final:</strong> ${{ number_format($historial->saldo_final,2) }}</td>
+        <td><strong>Ventas:</strong> {{ $resumen['total_ventas'] }}</td>
+    </tr>
 </table>
 
-<h3>Listado de Ventas</h3>
-
-<table class="table">
-
-<thead>
-<tr>
-<th># Venta</th>
-<th>Usuario</th>
-<th>Método de pago</th>
-<th class="text-right">Total</th>
-<th class="text-right">Descuento</th>
-<th>Fecha</th>
-</tr>
-</thead>
-
-<tbody>
-
-<tbody>
+<!-- DETALLE -->
+<div class="section-title">Detalle de ventas</div>
 
 @foreach($ventas as $venta)
 
-<!-- FILA DE LA VENTA -->
+<div style="margin-top:6px;">
 
-<tr>
+    <div class="sale-meta">
+        <strong>Venta #{{ $venta->id }}</strong> |
+        {{ $venta->created_at }} |
+        {{ $venta->usuario->name ?? 'N/A' }} |
+        <span class="badge">{{ ucfirst($venta->metodo_pago) }}</span>
+    </div>
 
-<td class="text-center">
-{{ $venta->id }}
-</td>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th class="center">Cant</th>
+                <th class="right">Precio</th>
+                <th class="right">Desc</th>
+                <th class="right">Subtotal</th>
+            </tr>
+        </thead>
 
-<td>
-{{ $venta->usuario->name ?? 'N/A' }}
-</td>
+        <tbody>
+            @foreach($venta->detalles as $detalle)
+                <tr>
+                    <td>{{ $detalle->producto->nombre ?? 'Producto eliminado' }}</td>
+                    <td class="center">{{ $detalle->cantidad }}</td>
+                    <td class="right">${{ number_format($detalle->precio,2) }}</td>
+                    <td class="right">${{ number_format($detalle->descuento_aplicado,2) }}</td>
+                    <td class="right">${{ number_format($detalle->subtotal,2) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+    <div class="sale-total">
+        Total: ${{ number_format($venta->total,2) }}
+    </div>
 
-<td class="text-center">
-{{ ucfirst($venta->metodo_pago) }}
-</td>
-
-<td class="text-right">
-${{ number_format($venta->total,2) }}
-</td>
-
-<td class="text-right">
-${{ number_format($venta->descuento,2) }}
-</td>
-
-<td>
-{{ $venta->created_at }}
-</td>
-
-</tr>
-
-<!-- FILA DETALLE PRODUCTOS -->
-
-<tr>
-
-<td colspan="6">
-
-<table class="table">
-
-<thead>
-<tr>
-<th>Producto</th>
-<th class="text-center">Cantidad</th>
-<th class="text-right">Precio</th>
-<th class="text-right">Subtotal</th>
-</tr>
-</thead>
-
-<tbody>
-
-@foreach($venta->detalles as $detalle)
-
-<tr>
-
-<td>
-{{ $detalle->producto->nombre ?? 'Producto eliminado' }}
-</td>
-
-<td class="text-center">
-{{ $detalle->cantidad }}
-</td>
-
-<td class="text-right">
-${{ number_format($detalle->precio,2) }}
-</td>
-
-<td class="text-right">
-${{ number_format($detalle->cantidad * $detalle->precio,2) }}
-</td>
-
-</tr>
+</div>
 
 @endforeach
 
-</tbody>
+<!--TOTAL GENERAL--> 
+<div class="total-general">
+    TOTAL VENTAS: ${{ number_format($resumen['total_general'],2) }}
+</div>
+
+<!-- RESUMEN -->
+<div class="section-title">Resumen general</div>
+
+<table class="summary-table">
+
+    <tr class="summary-title">
+        <td>Concepto</td>
+        <td class="right">Monto</td>
+    </tr>
+    
+    <tr>
+        <td>Efectivo</td>
+        <td class="right">${{ number_format($resumen['total_efectivo'],2) }}</td>
+    </tr>
+
+    <tr>
+        <td>Transferencia</td>
+        <td class="right">${{ number_format($resumen['total_transferencia'],2) }}</td>
+    </tr>
+
+    <tr>
+        <td>Crédito</td>
+        <td class="right">${{ number_format($resumen['total_credito'],2) }}</td>
+    </tr>
+
+    <tr>
+        <td>Descuentos</td>
+        <td class="right">${{ number_format($resumen['total_descuentos'],2) }}</td>
+    </tr>
+
+    <tr class="summary-final">
+        <td>TOTAL FINAL</td>
+        <td class="right">${{ number_format($resumen['total_general'],2) }}</td>
+    </tr>
 
 </table>
 
-</td>
 
-</tr>
+<div class="footer">
+    Documento generado automáticamente por el sistema
+</div>
 
-@endforeach
-
-</tbody>
-</table>
 </body>
 </html>

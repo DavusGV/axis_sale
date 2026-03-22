@@ -3,6 +3,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Ventas;
+use App\Models\User;
 
 class HistorialCajas extends Model
 {
@@ -17,5 +19,19 @@ class HistorialCajas extends Model
         'fecha_apertura',
         'fecha_cierre',
     ];
+
+    public function ventas()
+    {
+        return $this->hasMany(Ventas::class,'historial_caja_id');
+    }
+    public function usuario()
+    {
+        return $this->belongsTo(User::class,'usuario_id');
+    }
+
+    public function caja()
+    {
+        return $this->belongsTo(Cajas::class,'caja_id');
+    }
 }
 
