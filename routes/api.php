@@ -16,6 +16,8 @@ use App\Http\Controllers\PerfilController;
 use App\Http\Controllers\Finanzas\IngresosControlador;
 use App\Http\Controllers\Finanzas\GastosController;
 
+use App\Http\Controllers\VentasPdf\SaleHistoryBoxPdfController;
+
 use App\Http\Controllers\ClientesController;
 use App\Http\Controllers\PlanesPagoController;
 use App\Http\Controllers\PagosPlanController;
@@ -127,6 +129,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/{historyId}/ventas', [CajasController::class, 'showHistorySale']);
         Route::post('open', [CajasController::class, 'open']);
         Route::post('close', [CajasController::class, 'close']);
+    });
+
+    Route::prefix('ventas-pdf')->group(function () {
+        Route::get('/box-history/{historyId}', [SaleHistoryBoxPdfController::class, 'showSaleForBox']);
     });
 
 

@@ -8,6 +8,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Establecimiento;
+use App\Models\UserEstablecimiento;
 
 class User extends Authenticatable
 {
@@ -29,4 +30,11 @@ class User extends Authenticatable
         )->withTimestamps();
     }
 
+    public function userEstablecimientos()
+    {
+        return $this->belongsToMany(
+            UserEstablecimiento::class,
+            'establecimiento_id'
+        )->withTimestamps();
+    }
 }

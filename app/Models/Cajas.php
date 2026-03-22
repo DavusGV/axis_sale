@@ -3,6 +3,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Establecimiento;
 
 class Cajas extends Model
 {
@@ -12,5 +13,13 @@ class Cajas extends Model
         'nombre',
         'abierta',
     ];
+
+    public function establecimiento()
+    {
+        return $this->belongsTo(Establecimiento::class, 'establecimiento_id');
+    }
+
+
 }
+
 

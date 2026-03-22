@@ -28,36 +28,22 @@ class CajasController extends Controller
     }
 
     public function showHistoryBox($boxId)
-{
-    $history = HistorialCajas::select([
-            'id',
-            'caja_id',
-            'estado',
-            'saldo_inicial',
-            'saldo_final',
-            'created_at',
-            'updated_at'
-        ])
-        ->where('caja_id', $boxId)
-        ->orderByDesc('created_at')
-        ->paginate(10);
+    {
+        $history = HistorialCajas::with('caja')->select([
+                'id',
+                'caja_id',
+                'estado',
+                'saldo_inicial',
+                'saldo_final',
+                'created_at',
+                'updated_at'
+            ])
+            ->where('caja_id', $boxId)
+            ->orderByDesc('created_at')
+            ->paginate(10);
 
-    return $this->Success($history);
-}
-
-    public function showHistorySale($historyId)
-{
-    $sale = Ventas::where('historial_caja_id', $historyId)
-        ->with([
-            'saleDetails:id,venta_id,producto_id,cantidad,precio,subtotal',
-            'saleDetails.producto:id,nombre,precio_venta'
-        ])
-        ->orderBy('created_at', 'desc')
-        ->paginate(10);
-
-    return $this->Success($sale);
-}
-
+        return $this->Success($history);
+    }
 
     public function store(Request $request)
     {
@@ -117,7 +103,7 @@ class CajasController extends Controller
     public Function close(Request $request)
     {
         $request->validate([
-            'caja_id' => 'required|exists:cajas,id',
+            'caja_id'     => 'required|exists:cajas,id',
             'saldo_final' => 'required|numeric|min:0',
         ]);
 
