@@ -37,7 +37,11 @@ class ReportesController extends Controller
         $query = VentasDetalles::query()
             ->with('producto:id,nombre')
             ->whereHas('venta', function ($q) use ($establecimiento_id) {
-                $q->where('establecimiento_id', $establecimiento_id);
+                $q->where('establecimiento_id', $establecimiento_id)
+                ->where(function ($sq) {
+                    $sq->where('status', '!=', 'cancelada')
+                        ->orWhereNull('status');
+                });
             })
             ->when($desde, fn($q) => $q->whereDate('created_at', '>=', $desde))
             ->when($hasta, fn($q) => $q->whereDate('created_at', '<=', $hasta));
@@ -47,6 +51,10 @@ class ReportesController extends Controller
         // cargar ventas con plan de pago para detectar credito
         $ventaIds = $detalles->pluck('venta_id')->unique();
         $ventasConPlan = Ventas::whereIn('id', $ventaIds)
+            ->where(function ($q) {
+                $q->where('status', '!=', 'cancelada')
+                ->orWhereNull('status');
+            })
             ->with('planPago')
             ->get()
             ->keyBy('id');
@@ -131,6 +139,7 @@ class ReportesController extends Controller
 
             $query = PlanPago::with(['cliente', 'venta', 'pagos'])
                 ->where('establecimiento_id', $establecimiento_id)
+                ->where('estado', '!=', 'cancelado')
                 ->when($desde, fn($q) => $q->whereDate('fecha_inicio', '>=', $desde))
                 ->when($hasta, fn($q) => $q->whereDate('fecha_inicio', '<=', $hasta))
                 ->when($estado, fn($q) => $q->where('estado', $estado))

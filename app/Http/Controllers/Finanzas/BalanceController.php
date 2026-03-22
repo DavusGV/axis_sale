@@ -35,6 +35,10 @@ class BalanceController extends Controller
             $ventasMes = Ventas::where('establecimiento_id', $establecimiento_id)
                 ->whereYear('created_at', $year)
                 ->whereMonth('created_at', $month)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
                 ->with('planPago')
                 ->get();
 
@@ -53,7 +57,8 @@ class BalanceController extends Controller
 
             // abonos a credito cobrados en el mes
             $ingresosAbonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
-                    $q->where('establecimiento_id', $establecimiento_id);
+                    $q->where('establecimiento_id', $establecimiento_id)
+                    ->where('estado', '!=', 'cancelado');
                 })
                 ->whereYear('fecha_pago', $year)
                 ->whereMonth('fecha_pago', $month)
@@ -110,6 +115,10 @@ class BalanceController extends Controller
                 $ventasMes = Ventas::where('establecimiento_id', $establecimiento_id)
                     ->whereYear('created_at', $year)
                     ->whereMonth('created_at', $month)
+                    ->where(function ($q) {
+                        $q->where('status', '!=', 'cancelada')
+                        ->orWhereNull('status');
+                    })
                     ->with('planPago')
                     ->get();
 
@@ -124,8 +133,9 @@ class BalanceController extends Controller
                     return $v->total;
                 });
 
-                $ingresosAbonos = \App\Models\PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
-                        $q->where('establecimiento_id', $establecimiento_id);
+                $ingresosAbonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
+                        $q->where('establecimiento_id', $establecimiento_id)
+                        ->where('estado', '!=', 'cancelado');
                     })
                     ->whereYear('fecha_pago', $year)
                     ->whereMonth('fecha_pago', $month)
@@ -179,6 +189,10 @@ class BalanceController extends Controller
             $ventasMes = Ventas::where('establecimiento_id', $establecimiento_id)
                 ->whereYear('created_at', $year)
                 ->whereMonth('created_at', $month)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
                 ->with('planPago')
                 ->get();
 
@@ -199,7 +213,8 @@ class BalanceController extends Controller
 
             // abonos a credito agrupados por dia
             $abonosPorDia = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
-                    $q->where('establecimiento_id', $establecimiento_id);
+                    $q->where('establecimiento_id', $establecimiento_id)
+                    ->where('estado', '!=', 'cancelado');
                 })
                 ->whereYear('fecha_pago', $year)
                 ->whereMonth('fecha_pago', $month)
@@ -211,6 +226,10 @@ class BalanceController extends Controller
             $ventasPorDia = Ventas::where('establecimiento_id', $establecimiento_id)
                 ->whereYear('created_at', $year)
                 ->whereMonth('created_at', $month)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
                 ->selectRaw('DAY(created_at) as dia, SUM(total) as total')
                 ->groupBy('dia')
                 ->pluck('total', 'dia'); // [dia => total]

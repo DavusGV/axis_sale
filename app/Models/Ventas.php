@@ -17,6 +17,7 @@ class Ventas extends Model
         'cambio',
         'metodo_pago',
         'metodo_pago_id',
+        'status',
         'folio',
         'modo_iva',
         'iva_total',

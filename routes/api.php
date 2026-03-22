@@ -81,6 +81,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
         Route::get('/{id}/ticket', [VentasController::class, 'ticket']);
+        Route::get('/historial', [VentasController::class, 'historial']);
+        Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);
+        Route::put('/{id}/metodo-pago', [VentasController::class, 'actualizarMetodoPago']);
+        Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
     });
 
     // rutas de cotizaciones

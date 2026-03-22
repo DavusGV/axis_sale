@@ -45,10 +45,14 @@ class IngresosControlador extends Controller
                 strtolower(trim($m->nombre)) => $m->id
             ]);
 
-            // ventas del mes — cargamos la relacion planPago para detectar credito
+            // ventas del mes — excluimos canceladas y cargamos planPago para detectar credito
             $income = Ventas::where('establecimiento_id', $idestablishment)
                 ->whereYear('created_at', $year)
                 ->whereMonth('created_at', $month)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
                 ->with('planPago')
                 ->get();
 
@@ -77,7 +81,8 @@ class IngresosControlador extends Controller
 
             // abonos cobrados en el mes
             $abonosPorDia = PagoPlan::whereHas('plan', function ($q) use ($idestablishment) {
-                    $q->where('establecimiento_id', $idestablishment);
+                    $q->where('establecimiento_id', $idestablishment)
+                    ->where('estado', '!=', 'cancelado');
                 })
                 ->whereYear('fecha_pago', $year)
                 ->whereMonth('fecha_pago', $month)
