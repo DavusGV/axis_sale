@@ -9,6 +9,8 @@ use App\Models\TipoGasto;
 use App\Models\Gastos;
 use App\Models\Establecimiento;
 use App\Models\MetodoPago;
+use App\Models\Cajas;
+use App\Models\HistorialCajas;
 use Carbon\Carbon;
 
 class GastosController extends Controller
@@ -189,6 +191,24 @@ class GastosController extends Controller
 
             $establecimiento_id = app('establishment_id');
 
+            // buscamos la caja abierta del establecimiento
+            $caja = Cajas::where('establecimiento_id', $establecimiento_id)
+                ->where('abierta', true)
+                ->first();
+
+            if (!$caja) {
+                return $this->BadRequest('No hay una caja abierta para registrar el gasto.');
+            }
+
+            // buscamos el historial abierto de esa caja
+            $historialCaja = HistorialCajas::where('caja_id', $caja->id)
+                ->where('estado', 'abierta')
+                ->first();
+
+            if (!$historialCaja) {
+                return $this->BadRequest('No se encontró un historial de caja abierto.');
+            }
+
             $gasto = new Gastos();
             $gasto->establecimiento_id = $establecimiento_id;
             $gasto->tipo_gasto_id      = $data['tipo_gasto_id'];
@@ -199,6 +219,7 @@ class GastosController extends Controller
             $gasto->fecha              = $data['fecha'];
             $gasto->state              = $data['state'] ?? 1;
             $gasto->user_id            = auth()->id() ?? $this->request->user_id;
+            $gasto->historial_caja_id  = $historialCaja->id;
             $gasto->save();
 
             // cargamos las relaciones para devolver el objeto completo

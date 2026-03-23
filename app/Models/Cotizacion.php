@@ -14,7 +14,6 @@ class Cotizacion extends Model
         'establecimiento_id',
         'usuario_id',
         'cliente_id',
-        'caja_id',
         'historial_caja_id',
         'folio',
         'status',
@@ -47,10 +46,10 @@ class Cotizacion extends Model
         return $this->belongsTo(Cliente::class, 'cliente_id');
     }
 
-    // relacion con la caja
-    public function caja()
+    // relacion con el historial de caja
+    public function historialCaja()
     {
-        return $this->belongsTo(Cajas::class, 'caja_id');
+        return $this->belongsTo(HistorialCajas::class, 'historial_caja_id');
     }
 
     // relacion con los detalles de la cotizacion

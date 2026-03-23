@@ -113,6 +113,14 @@ class CotizacionesController extends Controller
             // buscamos la caja abierta si existe, pero no es obligatoria
             $caja          = Cajas::where('establecimiento_id', $establecimiento_id)->where('abierta', true)->first();
             $historialCaja = null;
+            
+            if (!$caja) {
+                return $this->BadRequest('No hay una caja abierta para registrar la cotización.');
+            }
+
+            if (!$historialCaja) {
+                return $this->BadRequest('No se encontró un historial de caja abierto.');
+            }
 
             if ($caja) {
                 $historialCaja = HistorialCajas::where('caja_id', $caja->id)
@@ -156,7 +164,6 @@ class CotizacionesController extends Controller
             $cotizacion->establecimiento_id = $establecimiento_id;
             $cotizacion->usuario_id         = $request->usuario_id;
             $cotizacion->cliente_id         = $request->cliente_id;
-            $cotizacion->caja_id            = $caja->id ?? null;
             $cotizacion->historial_caja_id  = $historialCaja->id ?? null;
             $cotizacion->folio              = $this->generarFolioCotizacion($establecimiento_id);
             $cotizacion->status             = 'pendiente';

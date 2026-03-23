@@ -24,4 +24,10 @@ class Gastos extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    // relacion con el historial de caja
+    public function historialCaja()
+    {
+        return $this->belongsTo(HistorialCajas::class, 'historial_caja_id');
+    }
 }
