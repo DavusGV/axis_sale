@@ -40,14 +40,23 @@ class PlanesPagoController extends Controller
                 $search = $request->search;
                 $query->whereHas('cliente', function ($q) use ($search) {
                     $q->where('nombre', 'like', "%{$search}%")
-                      ->orWhere('apellido_p', 'like', "%{$search}%")
-                      ->orWhere('telefono1', 'like', "%{$search}%");
+                    ->orWhere('apellido_p', 'like', "%{$search}%")
+                    ->orWhere('telefono1', 'like', "%{$search}%");
                 });
+            }
+
+            // filtro por rango de fechas de inicio del plan
+            if ($request->filled('fecha_desde')) {
+                $query->whereDate('fecha_inicio', '>=', $request->fecha_desde);
+            }
+
+            if ($request->filled('fecha_hasta')) {
+                $query->whereDate('fecha_inicio', '<=', $request->fecha_hasta);
             }
 
             $query->orderBy('created_at', 'desc');
 
-            $perPage = $request->get('per_page', 15);
+            $perPage = $request->get('per_page', 10);
             $paginator = $query->paginate($perPage);
 
             return response()->json([
@@ -56,6 +65,8 @@ class PlanesPagoController extends Controller
                 'per_page'     => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
                 'last_page'    => $paginator->lastPage(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
             ], 200);
 
         } catch (Exception $e) {

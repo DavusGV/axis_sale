@@ -327,6 +327,11 @@ class VentasController extends Controller
                 }
 
                 return [
+                    'detalle_id'         => $detalle->id,
+                    'producto_id'        => $detalle->producto_id,
+                    'es_servicio'        => $detalle->producto->es_servicio ?? false,
+                    'stock_disponible'   => $detalle->producto ? $detalle->producto->stock : 0,
+                    'precio_compra'      => $detalle->precio_compra,
                     'nombre'             => $detalle->producto->nombre ?? 'Producto eliminado',
                     'imagen_url'         => $detalle->producto->imagen_url ?? null,
                     'cantidad'           => $detalle->cantidad,
@@ -386,4 +391,256 @@ class VentasController extends Controller
             return $this->InternalError(['error' => 'Error al obtener el ticket.', 'details' => $e->getMessage()]);
         }
     }
+
+    // Historial de ventas con filtros
+    public function historial(Request $request)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $query = Ventas::with(['detalles.producto', 'planPago.cliente', 'establecimiento'])
+                ->where('establecimiento_id', $establecimiento_id);
+
+            // filtro por rango de fechas
+            if ($request->filled('desde')) {
+                $query->whereDate('created_at', '>=', $request->desde);
+            }
+            if ($request->filled('hasta')) {
+                $query->whereDate('created_at', '<=', $request->hasta);
+            }
+
+            // filtro por folio o metodo de pago
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('folio', 'like', "%{$search}%")
+                    ->orWhere('metodo_pago', 'like', "%{$search}%");
+                });
+            }
+
+            // filtro por status
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $query->orderBy('created_at', 'desc');
+
+            $perPage   = $request->get('per_page', 10);
+            $paginator = $query->paginate($perPage);
+
+            $data = [];
+            foreach ($paginator->items() as $venta) {
+                $data[] = [
+                    'id'            => $venta->id,
+                    'folio'         => $venta->folio,
+                    'status'        => $venta->status ?? 'vendida',
+                    'fecha'         => $venta->created_at->format('d/m/Y H:i'),
+                    'metodo_pago'   => $venta->metodo_pago,
+                    'subtotal'      => $venta->subtotal,
+                    'iva_total'     => $venta->iva_total,
+                    'total'         => $venta->total,
+                    'pago'          => $venta->pago,
+                    'cambio'        => $venta->cambio,
+                    'es_credito'    => $venta->planPago !== null,
+                    'cliente'       => $venta->planPago?->cliente
+                        ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
+                        : null,
+                    'num_productos' => $venta->detalles->sum('cantidad'),
+                ];
+            }
+
+            return response()->json([
+                'data'         => $data,
+                'total'        => $paginator->total(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ], 200);
+
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al obtener el historial', 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function actualizarMetodoPago(Request $request, int $id)
+    {
+        try {
+            $venta = Ventas::findOrFail($id);
+
+            if (($venta->status ?? 'vendida') === 'cancelada') {
+                return $this->BadRequest([
+                    'message' => 'No se puede editar una venta cancelada.'
+                ]);
+            }
+
+            $venta->metodo_pago    = $request->metodo_pago;
+            $venta->metodo_pago_id = $request->metodo_pago_id ?? null;
+            $venta->save();
+
+            return $this->Success([
+                'message' => 'Metodo de pago actualizado correctamente.',
+                'venta'   => $venta,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al actualizar el metodo de pago.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function actualizarDetalles(Request $request, int $id)
+    {
+        DB::beginTransaction();
+        try {
+            $venta = Ventas::with('detalles')->findOrFail($id);
+
+            if (($venta->status ?? 'vendida') === 'cancelada') {
+                return $this->BadRequest([
+                    'message' => 'No se puede editar una venta cancelada.'
+                ]);
+            }
+
+            $establecimiento_id = app('establishment_id');
+            $config  = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimiento_id)->first();
+            $modoIva = $config->modo_iva ?? 'sin_iva';
+
+            // ids de detalles que vienen en la peticion
+            $idsRecibidos = collect($request->detalles)->pluck('detalle_id')->filter()->toArray();
+
+            // detalles que se eliminaron: devolver stock
+            $detallesToDelete = $venta->detalles()->whereNotIn('id', $idsRecibidos)->get();
+            foreach ($detallesToDelete as $det) {
+                $producto = $det->producto;
+                if ($producto && !$producto->es_servicio) {
+                    $producto->stock += $det->cantidad;
+                    $producto->save();
+                }
+                $det->delete();
+            }
+
+            $nuevoSubtotal = 0;
+            $nuevoIvaTotal = 0;
+            $nuevoDescuentoTotal = 0;
+
+            foreach ($request->detalles as $item) {
+                $detalle = VentasDetalles::find($item['detalle_id']);
+                if (!$detalle || $detalle->venta_id !== $venta->id) continue;
+
+                $producto = $detalle->producto;
+
+                // ajustamos stock por la diferencia de cantidad
+                if ($producto && !$producto->es_servicio) {
+                    $diferencia = $item['cantidad'] - $detalle->cantidad;
+                    if ($diferencia > 0 && $producto->stock < $diferencia) {
+                        DB::rollBack();
+                        return $this->BadRequest([
+                            'message' => "Stock insuficiente de: {$producto->nombre}. Disponible: {$producto->stock}"
+                        ]);
+                    }
+                    $producto->stock -= $diferencia;
+                    $producto->save();
+                }
+
+                $detalle->cantidad           = $item['cantidad'];
+                $detalle->precio             = $item['precio'];
+                $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
+                $detalle->descuento          = $item['descuento'] ?? 0;
+                $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
+                $detalle->subtotal           = $item['precio'] * $item['cantidad'];
+                $detalle->save();
+
+                $subtotalNeto  = $detalle->subtotal - $detalle->descuento_aplicado;
+                $ivaPorcentaje = $detalle->iva_porcentaje ?? 0;
+                $ivaMonto      = 0;
+
+                if ($modoIva === 'iva_incluido' && $ivaPorcentaje > 0) {
+                    $ivaMonto = $subtotalNeto - ($subtotalNeto / (1 + $ivaPorcentaje / 100));
+                } elseif ($modoIva === 'iva_adicional' && $ivaPorcentaje > 0) {
+                    $ivaMonto = $subtotalNeto * ($ivaPorcentaje / 100);
+                }
+
+                $nuevoSubtotal       += $detalle->subtotal;
+                $nuevoIvaTotal       += $ivaMonto;
+                $nuevoDescuentoTotal += $detalle->descuento_aplicado;
+            }
+
+            // recalculamos totales de la venta
+            $totalFinal = $nuevoSubtotal - $nuevoDescuentoTotal;
+            if ($modoIva === 'iva_adicional') {
+                $totalFinal += $nuevoIvaTotal;
+            }
+
+            $venta->subtotal  = round($nuevoSubtotal, 2);
+            $venta->iva_total = round($nuevoIvaTotal, 2);
+            $venta->total     = round($totalFinal, 2);
+            $venta->save();
+
+            DB::commit();
+
+            return $this->Success([
+                'message' => 'Venta actualizada correctamente.',
+                'venta'   => $venta->fresh(['detalles']),
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError([
+                'error'   => 'Error al actualizar la venta.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Cancelacion de venta devuelve los productos
+    public function cancelarVenta(int $id)
+    {
+        DB::beginTransaction();
+        try {
+            $venta = Ventas::with(['detalles.producto', 'planPago'])->findOrFail($id);
+
+            if (($venta->status ?? 'vendido') === 'cancelada') {
+                return $this->BadRequest([
+                    'message' => 'Esta venta ya esta cancelada.'
+                ]);
+            }
+
+            // devolvemos el stock de cada producto que no sea servicio
+            foreach ($venta->detalles as $detalle) {
+                $producto = $detalle->producto;
+                if ($producto && !$producto->es_servicio) {
+                    $producto->stock += $detalle->cantidad;
+                    $producto->save();
+                }
+            }
+
+            // si la venta tiene plan de pago (credito), lo cancelamos tambien
+            if ($venta->planPago) {
+                $plan = $venta->planPago;
+                $plan->estado = 'cancelado';
+                $plan->save();
+            }
+
+            $venta->status = 'cancelada';
+            $venta->save();
+
+            DB::commit();
+
+            return $this->Success([
+                'message' => 'Venta cancelada y stock devuelto correctamente.',
+                'plan_cancelado' => $venta->planPago ? true : false,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError([
+                'error'   => 'Error al cancelar la venta.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
 }

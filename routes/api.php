@@ -23,6 +23,7 @@ use App\Http\Controllers\PlanesPagoController;
 use App\Http\Controllers\PagosPlanController;
 use App\Http\Controllers\Finanzas\BalanceController;
 use App\Http\Controllers\ConfiguracionEstablecimientoController;
+use App\Http\Controllers\CotizacionesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +83,21 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
         Route::get('/{id}/ticket', [VentasController::class, 'ticket']);
+        Route::get('/historial', [VentasController::class, 'historial']);
+        Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);
+        Route::put('/{id}/metodo-pago', [VentasController::class, 'actualizarMetodoPago']);
+        Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
+    });
+
+    // rutas de cotizaciones
+    Route::prefix('cotizaciones')->group(function () {
+        Route::get('/',                     [CotizacionesController::class, 'index']);
+        Route::post('/',                    [CotizacionesController::class, 'store']);
+        Route::put('/{id}/detalles',        [CotizacionesController::class, 'actualizarDetalles']);
+        Route::get('/{id}/ticket',          [CotizacionesController::class, 'ticketCotizacion']);
+        Route::get('/{id}/comprobar',       [CotizacionesController::class, 'comprobarStock']);
+        Route::post('/{id}/convertir',      [CotizacionesController::class, 'convertirVenta']);
+        Route::patch('/{id}/cancelar',      [CotizacionesController::class, 'cancelar']);
     });
 
     Route::prefix('configuracion')->group(function () {
