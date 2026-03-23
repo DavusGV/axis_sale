@@ -76,13 +76,13 @@ class SaleHistoryBoxPdfController extends Controller
 
             //clasificamos por los metdos de pago
             switch ($venta->metodo_pago) {
-                case 'efectivo':
+                case 'Efectivo':
                     $totalEfectivo += $totalVenta;
                     break;
-                case 'transferencia':
+                case 'Transferencia':
                     $totalTransferencia += $totalVenta;
                     break;
-                case 'credito':
+                case 'Credito':
                     $totalCredito += $totalVenta;
                     break;
             }
