@@ -24,6 +24,7 @@ use App\Http\Controllers\PagosPlanController;
 use App\Http\Controllers\Finanzas\BalanceController;
 use App\Http\Controllers\ConfiguracionEstablecimientoController;
 use App\Http\Controllers\CotizacionesController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,6 +78,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
     #endregion Buildings Routes demo
 
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::prefix('ventas')->group(function () {
         Route::get('/products', [VentasController::class, 'index']);
