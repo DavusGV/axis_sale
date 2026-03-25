@@ -13,182 +13,252 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class BalanceReporteExport implements FromArray, WithStyles, WithColumnWidths, WithTitle
 {
-    protected $ventas;
+    protected $ventasPorMetodo;
+    protected $ventasCredito;
     protected $abonos;
     protected $gastos;
     protected $fechaInicio;
     protected $fechaFin;
     protected $establecimiento;
+    protected $totalContado;
+    protected $totalAnticipos;
+    protected $totalAbonos;
 
-    // Control de filas para aplicar estilos despues
-    protected $filaTituloIngresos;
-    protected $filaEncabezadoIngresos;
-    protected $filaSubtotalIngresos;
+    // Control de filas para estilos
+    protected $filasSubseccion = [];
+    protected $filasEncabezado = [];
+    protected $filasSubtotal = [];
     protected $filaTituloGastos;
     protected $filaEncabezadoGastos;
     protected $filaSubtotalGastos;
-    protected $filaTituloResultado;
-    protected $filaIngresosBrutos;
-    protected $filaTotalInversiones;
-    protected $filaSaldoNeto;
-    protected $filaIndicador;
+    protected $filaTotalIngresos;
+    protected $filaResumenInicio;
     protected $totalFilas;
 
     /**
-     * Constructor: recibe los datos ya consultados desde el controlador
-     *
-     * @param \Illuminate\Support\Collection $ventas
-     * @param \Illuminate\Support\Collection $abonos
+     * @param \Illuminate\Support\Collection $ventasPorMetodo - ventas de contado agrupadas por metodo
+     * @param \Illuminate\Support\Collection $ventasCredito - ventas a credito
+     * @param \Illuminate\Support\Collection $abonos - abonos con relacion plan.venta y plan.cliente
      * @param \Illuminate\Support\Collection $gastos
      * @param string $fechaInicio
      * @param string $fechaFin
      * @param string $establecimiento
+     * @param float $totalContado
+     * @param float $totalAnticipos
+     * @param float $totalAbonos
      */
-    public function __construct($ventas, $abonos, $gastos, $fechaInicio, $fechaFin, $establecimiento = '')
-    {
-        $this->ventas = $ventas;
+    public function __construct(
+        $ventasPorMetodo,
+        $ventasCredito,
+        $abonos,
+        $gastos,
+        $fechaInicio,
+        $fechaFin,
+        $establecimiento,
+        $totalContado,
+        $totalAnticipos,
+        $totalAbonos
+    ) {
+        $this->ventasPorMetodo = $ventasPorMetodo;
+        $this->ventasCredito = $ventasCredito;
         $this->abonos = $abonos;
         $this->gastos = $gastos;
         $this->fechaInicio = $fechaInicio;
         $this->fechaFin = $fechaFin;
         $this->establecimiento = $establecimiento;
+        $this->totalContado = $totalContado;
+        $this->totalAnticipos = $totalAnticipos;
+        $this->totalAbonos = $totalAbonos;
     }
 
-    /**
-     * Nombre de la hoja del excel
-     */
     public function title(): string
     {
         return 'Balance General';
     }
 
-    /**
-     * Arma todas las filas del reporte en un solo array
-     * Cada sub-array es una fila del excel
-     */
     public function array(): array
     {
         $filas = [];
         $fila = 1;
 
         // ── Encabezado principal ──
-        $filas[] = ['Reporte de Balance General'];                          // fila 1
-        $filas[] = [$this->establecimiento];                                // fila 2
-        $filas[] = ['Periodo: ' . $this->fechaInicio . ' al ' . $this->fechaFin]; // fila 3
-        $filas[] = [''];                                                    // fila 4 vacia
+        $filas[] = ['Reporte de Balance General'];
+        $filas[] = [$this->establecimiento];
+        $filas[] = ['Periodo: ' . $this->fechaInicio . ' al ' . $this->fechaFin];
+        $filas[] = [''];
         $fila = 5;
 
-        // ── SECCION INGRESOS GENERADOS ──
-        $this->filaTituloIngresos = $fila;
-        $filas[] = ['INGRESOS GENERADOS'];
+        // ── SECCION INGRESOS ──
+        $this->filasSubseccion[] = $fila;
+        $filas[] = ['INGRESOS GENERADOS', '', '', '', '', ''];
         $fila++;
 
-        // Encabezados de tabla de ingresos
-        $this->filaEncabezadoIngresos = $fila;
-        $filas[] = ['Folio', 'Fecha', 'Metodo de Pago', 'Tipo', 'Monto ($)'];
-        $fila++;
-
-        // Filas de ventas
         $totalIngresos = 0;
-        foreach ($this->ventas as $venta) {
-            $esCredito = $venta->planPago !== null;
-            $tipo = $esCredito ? 'Credito (Anticipo)' : 'Contado';
-            // Si es credito usamos el pago (anticipo), si es contado usamos el total
-            $monto = $esCredito ? $venta->pago : $venta->total;
-            $totalIngresos += $monto;
 
-            $filas[] = [
-                $venta->folio ?? 'S/F',
-                $venta->created_at ? $venta->created_at->format('d/m/Y H:i') : '',
-                $venta->metodo_pago ?? '',
-                $tipo,
-                round($monto, 2),
-            ];
+        // ── Ventas de contado agrupadas por metodo de pago ──
+        foreach ($this->ventasPorMetodo as $metodo => $ventasDelMetodo) {
+            // Titulo del metodo
+            $this->filasSubseccion[] = $fila;
+            $filas[] = [$metodo . ' (Contado)', '', '', '', '', ''];
+            $fila++;
+
+            // Encabezados
+            $this->filasEncabezado[] = $fila;
+            $filas[] = ['Folio', 'Fecha', 'Metodo', '', 'Monto ($)', ''];
+            $fila++;
+
+            $subtotalMetodo = 0;
+            foreach ($ventasDelMetodo as $venta) {
+                $filas[] = [
+                    $venta->folio ?? 'S/F',
+                    $venta->created_at ? $venta->created_at->format('d/m/Y H:i') : '',
+                    $venta->metodo_pago ?? '',
+                    '',
+                    round($venta->total, 2),
+                    '',
+                ];
+                $fila++;
+                $subtotalMetodo += $venta->total;
+            }
+
+            // Subtotal del metodo
+            $this->filasSubtotal[] = $fila;
+            $filas[] = ['', '', '', 'Subtotal ' . $metodo, round($subtotalMetodo, 2), ''];
+            $fila++;
+            $totalIngresos += $subtotalMetodo;
+
+            // Separacion
+            $filas[] = [''];
             $fila++;
         }
 
-        // Filas de abonos a credito
-        foreach ($this->abonos as $abono) {
-            $totalIngresos += $abono->monto_pagado;
+        // ── Creditos: anticipos + abonos ──
+        if ($this->ventasCredito->count() > 0 || $this->abonos->count() > 0) {
+            $this->filasSubseccion[] = $fila;
+            $filas[] = ['CREDITOS (Anticipos y Abonos)', '', '', '', '', ''];
+            $fila++;
 
-            $filas[] = [
-                'Abono a credito',
-                $abono->fecha_pago ?? '',
-                $abono->metodo_pago ?? '',
-                'Abono',
-                round($abono->monto_pagado, 2),
-            ];
+            // Encabezados de credito
+            $this->filasEncabezado[] = $fila;
+            $filas[] = ['Folio Venta', 'Fecha', 'Cliente', 'Tipo', 'Metodo', 'Monto ($)'];
+            $fila++;
+
+            // Anticipos
+            foreach ($this->ventasCredito as $venta) {
+                $clienteNombre = '';
+                if ($venta->planPago && $venta->planPago->cliente) {
+                    $clienteNombre = $venta->planPago->cliente->nombre . ' ' . ($venta->planPago->cliente->apellido_p ?? '');
+                }
+
+                $filas[] = [
+                    $venta->folio ?? 'S/F',
+                    $venta->created_at ? $venta->created_at->format('d/m/Y H:i') : '',
+                    $clienteNombre ?: '-',
+                    'Anticipo',
+                    $venta->metodo_pago ?? '',
+                    round($venta->pago, 2),
+                ];
+                $fila++;
+            }
+
+            // Abonos
+            foreach ($this->abonos as $abono) {
+                $folioVenta = 'S/F';
+                $clienteAbono = '-';
+                if ($abono->plan) {
+                    if ($abono->plan->venta) {
+                        $folioVenta = $abono->plan->venta->folio ?? 'S/F';
+                    }
+                    if ($abono->plan->cliente) {
+                        $clienteAbono = $abono->plan->cliente->nombre . ' ' . ($abono->plan->cliente->apellido_p ?? '');
+                    }
+                }
+
+                $filas[] = [
+                    $folioVenta,
+                    $abono->fecha_pago ? $abono->fecha_pago->format('d/m/Y') : '',
+                    $clienteAbono,
+                    'Abono #' . $abono->numero_cuota,
+                    $abono->metodo_pago ?? '',
+                    round($abono->monto_pagado, 2),
+                ];
+                $fila++;
+            }
+
+            $subtotalCreditos = $this->totalAnticipos + $this->totalAbonos;
+            $this->filasSubtotal[] = $fila;
+            $filas[] = ['', '', '', '', 'Subtotal Creditos', round($subtotalCreditos, 2)];
+            $fila++;
+            $totalIngresos += $subtotalCreditos;
+
+            $filas[] = [''];
             $fila++;
         }
 
-        // Subtotal de ingresos
-        $this->filaSubtotalIngresos = $fila;
-        $filas[] = ['', '', '', 'Subtotal Ingresos Brutos', round($totalIngresos, 2)];
+        // Total general de ingresos
+        $totalIngresos = round($totalIngresos, 2);
+        $this->filaTotalIngresos = $fila;
+        $filas[] = ['', '', '', '', 'TOTAL INGRESOS BRUTOS', round($totalIngresos, 2)];
         $fila++;
 
-        // Fila vacia de separacion
         $filas[] = [''];
         $fila++;
 
-        // ── SECCION INVERSIONES REALIZADAS (GASTOS) ──
+        // ── SECCION GASTOS ──
         $this->filaTituloGastos = $fila;
-        $filas[] = ['INVERSIONES REALIZADAS (GASTOS)'];
+        $filas[] = ['INVERSIONES REALIZADAS (GASTOS)', '', '', '', '', ''];
         $fila++;
 
-        // Encabezados de tabla de gastos
         $this->filaEncabezadoGastos = $fila;
-        $filas[] = ['Concepto', 'Fecha', 'Tipo de Gasto', 'Descripcion', 'Monto ($)'];
+        $filas[] = ['Concepto', 'Fecha', 'Categoria', 'Descripcion', 'Monto ($)', ''];
         $fila++;
 
-        // Filas de gastos
         $totalGastos = 0;
         foreach ($this->gastos as $gasto) {
             $totalGastos += $gasto->monto;
-
             $filas[] = [
                 $gasto->concepto ?? '',
                 $gasto->fecha ?? '',
                 $gasto->tipoGasto->name ?? 'Sin tipo',
                 $gasto->descripcion ?? '',
                 round($gasto->monto, 2),
+                '',
             ];
             $fila++;
         }
 
-        // Subtotal de gastos
         $this->filaSubtotalGastos = $fila;
-        $filas[] = ['', '', '', 'Subtotal Inversiones', round($totalGastos, 2)];
+        $filas[] = ['', '', '', '', 'Subtotal Inversiones', round($totalGastos, 2)];
         $fila++;
 
-        // Fila vacia de separacion
         $filas[] = [''];
         $fila++;
 
-        // ── SECCION RESULTADO DEL PERIODO ──
-        $this->filaTituloResultado = $fila;
-        $filas[] = ['RESULTADO DEL PERIODO'];
+        // ── SECCION RESULTADO ──
+        $this->filaResumenInicio = $fila;
+        $filas[] = ['RESULTADO DEL PERIODO', '', '', '', '', ''];
+        $fila++;
+
+        $filas[] = ['', '', '', 'Concepto', '', 'Monto'];
+        $fila++;
+
+        $filas[] = ['', '', '', 'Ingresos por contado', '', round($this->totalContado, 2)];
+        $fila++;
+
+        $filas[] = ['', '', '', 'Ingresos por anticipos (credito)', '', round($this->totalAnticipos, 2)];
+        $fila++;
+
+        $filas[] = ['', '', '', 'Ingresos por abonos (credito)', '', round($this->totalAbonos, 2)];
+        $fila++;
+
+        $filas[] = ['', '', '', 'Total Ingresos Brutos', '', round($totalIngresos, 2)];
+        $fila++;
+
+        $filas[] = ['', '', '', '(-) Total Inversiones', '', round($totalGastos, 2)];
         $fila++;
 
         $saldoNeto = round($totalIngresos - $totalGastos, 2);
-
-        $this->filaIngresosBrutos = $fila;
-        $filas[] = ['', '', '', 'Ingresos Brutos', round($totalIngresos, 2)];
-        $fila++;
-
-        $this->filaTotalInversiones = $fila;
-        $filas[] = ['', '', '', 'Total Inversiones', round($totalGastos, 2)];
-        $fila++;
-
-        $this->filaSaldoNeto = $fila;
-        $filas[] = ['', '', '', 'Saldo Neto', $saldoNeto];
-        $fila++;
-
-        // Indicador de resultado
-        $this->filaIndicador = $fila;
-        $indicador = $saldoNeto >= 0
-            ? 'Saldo favorable'
-            : 'Mayor inversion que ingreso';
-        $filas[] = ['', '', '', $indicador, ''];
+        $filas[] = ['', '', '', 'SALDO NETO', '', $saldoNeto];
         $fila++;
 
         $this->totalFilas = $fila - 1;
@@ -196,219 +266,152 @@ class BalanceReporteExport implements FromArray, WithStyles, WithColumnWidths, W
         return $filas;
     }
 
-    /**
-     * Anchos de columna para que el reporte sea legible
-     */
     public function columnWidths(): array
     {
         return [
-            'A' => 22,
-            'B' => 20,
+            'A' => 20,
+            'B' => 18,
             'C' => 20,
-            'D' => 28,
-            'E' => 18,
+            'D' => 26,
+            'E' => 22,
+            'F' => 16,
         ];
     }
 
-    /**
-     * Estilos visuales: negritas, colores, bordes, merge de celdas
-     */
     public function styles(Worksheet $sheet)
     {
-        // ── Merge de celdas para titulos principales ──
-        $sheet->mergeCells('A1:E1');
-        $sheet->mergeCells('A2:E2');
-        $sheet->mergeCells('A3:E3');
-        $sheet->mergeCells("A{$this->filaTituloIngresos}:E{$this->filaTituloIngresos}");
-        $sheet->mergeCells("A{$this->filaTituloGastos}:E{$this->filaTituloGastos}");
-        $sheet->mergeCells("A{$this->filaTituloResultado}:E{$this->filaTituloResultado}");
+        // Merge encabezado principal
+        $sheet->mergeCells('A1:F1');
+        $sheet->mergeCells('A2:F2');
+        $sheet->mergeCells('A3:F3');
 
-        // ── Titulo principal ──
         $sheet->getStyle('A1')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 16,
-                'color' => ['rgb' => '1F2937'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-            ],
-        ]);
-
-        // Nombre del establecimiento
-        $sheet->getStyle('A2')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 12,
-                'color' => ['rgb' => '4B5563'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-            ],
-        ]);
-
-        // Periodo
-        $sheet->getStyle('A3')->applyFromArray([
-            'font' => [
-                'size' => 11,
-                'color' => ['rgb' => '6B7280'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-            ],
-        ]);
-
-        // ── Titulo seccion INGRESOS ──
-        $sheet->getStyle("A{$this->filaTituloIngresos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 13, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '059669'],
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-        ]);
-
-        // Encabezados tabla ingresos
-        $sheet->getStyle("A{$this->filaEncabezadoIngresos}:E{$this->filaEncabezadoIngresos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '10B981'],
-            ],
+            'font' => ['bold' => true, 'size' => 15, 'color' => ['rgb' => '1F2937']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'borders' => [
-                'allBorders' => ['borderStyle' => Border::BORDER_THIN],
-            ],
+        ]);
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => '4B5563']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+        $sheet->getStyle('A3')->applyFromArray([
+            'font' => ['size' => 10, 'color' => ['rgb' => '6B7280']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        // Filas de datos de ingresos (entre encabezado y subtotal)
-        $inicioDataIng = $this->filaEncabezadoIngresos + 1;
-        $finDataIng = $this->filaSubtotalIngresos - 1;
-        if ($finDataIng >= $inicioDataIng) {
-            $sheet->getStyle("A{$inicioDataIng}:E{$finDataIng}")->applyFromArray([
-                'borders' => [
-                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'D1D5DB']],
+        // Subsecciones (titulos de metodo, creditos, ingresos, gastos, resultado)
+        foreach ($this->filasSubseccion as $f) {
+            $sheet->mergeCells("A{$f}:F{$f}");
+            $sheet->getStyle("A{$f}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '374151'],
                 ],
-                'font' => ['size' => 10],
             ]);
-
-            // Alternar color de filas para mejor lectura
-            for ($i = $inicioDataIng; $i <= $finDataIng; $i++) {
-                if (($i - $inicioDataIng) % 2 === 0) {
-                    $sheet->getStyle("A{$i}:E{$i}")->applyFromArray([
-                        'fill' => [
-                            'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'ECFDF5'],
-                        ],
-                    ]);
-                }
-            }
         }
 
-        // Subtotal ingresos
-        $sheet->getStyle("D{$this->filaSubtotalIngresos}:E{$this->filaSubtotalIngresos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '059669']],
-            'borders' => [
-                'top' => ['borderStyle' => Border::BORDER_DOUBLE],
-                'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
-            ],
-        ]);
-
-        // ── Titulo seccion GASTOS ──
-        $sheet->getStyle("A{$this->filaTituloGastos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 13, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '2563EB'],
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-        ]);
-
-        // Encabezados tabla gastos
-        $sheet->getStyle("A{$this->filaEncabezadoGastos}:E{$this->filaEncabezadoGastos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '3B82F6'],
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            'borders' => [
-                'allBorders' => ['borderStyle' => Border::BORDER_THIN],
-            ],
-        ]);
-
-        // Filas de datos de gastos
-        $inicioDataGas = $this->filaEncabezadoGastos + 1;
-        $finDataGas = $this->filaSubtotalGastos - 1;
-        if ($finDataGas >= $inicioDataGas) {
-            $sheet->getStyle("A{$inicioDataGas}:E{$finDataGas}")->applyFromArray([
-                'borders' => [
-                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'D1D5DB']],
+        // Encabezados de tablas
+        foreach ($this->filasEncabezado as $f) {
+            $sheet->getStyle("A{$f}:F{$f}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '111827']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'E5E7EB'],
                 ],
-                'font' => ['size' => 10],
+                'borders' => [
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CCCCCC']],
+                ],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ]);
+        }
 
-            for ($i = $inicioDataGas; $i <= $finDataGas; $i++) {
-                if (($i - $inicioDataGas) % 2 === 0) {
-                    $sheet->getStyle("A{$i}:E{$i}")->applyFromArray([
-                        'fill' => [
-                            'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'EFF6FF'],
-                        ],
-                    ]);
-                }
-            }
+        // Subtotales
+        foreach ($this->filasSubtotal as $f) {
+            $sheet->getStyle("A{$f}:F{$f}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 10],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_DOUBLE],
+                ],
+            ]);
+        }
+
+        // Total ingresos brutos
+        if ($this->filaTotalIngresos) {
+            $sheet->getStyle("E{$this->filaTotalIngresos}:F{$this->filaTotalIngresos}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '059669']],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_DOUBLE],
+                    'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
+                ],
+            ]);
+        }
+
+        // Titulo gastos
+        if ($this->filaTituloGastos) {
+            $sheet->mergeCells("A{$this->filaTituloGastos}:F{$this->filaTituloGastos}");
+            $sheet->getStyle("A{$this->filaTituloGastos}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '2563EB'],
+                ],
+            ]);
+        }
+
+        // Encabezado gastos
+        if ($this->filaEncabezadoGastos) {
+            $sheet->getStyle("A{$this->filaEncabezadoGastos}:F{$this->filaEncabezadoGastos}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '3B82F6'],
+                ],
+                'borders' => [
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN],
+                ],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
         }
 
         // Subtotal gastos
-        $sheet->getStyle("D{$this->filaSubtotalGastos}:E{$this->filaSubtotalGastos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '2563EB']],
-            'borders' => [
-                'top' => ['borderStyle' => Border::BORDER_DOUBLE],
-                'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
-            ],
-        ]);
+        if ($this->filaSubtotalGastos) {
+            $sheet->getStyle("E{$this->filaSubtotalGastos}:F{$this->filaSubtotalGastos}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => '2563EB']],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_DOUBLE],
+                    'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
+                ],
+            ]);
+        }
 
-        // ── Titulo seccion RESULTADO ──
-        $sheet->getStyle("A{$this->filaTituloResultado}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 13, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '7C3AED'],
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-        ]);
+        // Resultado del periodo
+        if ($this->filaResumenInicio) {
+            $sheet->mergeCells("A{$this->filaResumenInicio}:F{$this->filaResumenInicio}");
+            $sheet->getStyle("A{$this->filaResumenInicio}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '7C3AED'],
+                ],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
 
-        // Fila ingresos brutos
-        $sheet->getStyle("D{$this->filaIngresosBrutos}:E{$this->filaIngresosBrutos}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11],
-        ]);
+            // Saldo neto (ultima fila)
+            $sheet->getStyle("D{$this->totalFilas}:F{$this->totalFilas}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 12],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_DOUBLE],
+                    'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'F3F4F6'],
+                ],
+            ]);
+        }
 
-        // Fila total inversiones
-        $sheet->getStyle("D{$this->filaTotalInversiones}:E{$this->filaTotalInversiones}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11],
-        ]);
-
-        // Fila saldo neto
-        $sheet->getStyle("D{$this->filaSaldoNeto}:E{$this->filaSaldoNeto}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 13],
-            'borders' => [
-                'top' => ['borderStyle' => Border::BORDER_DOUBLE],
-                'bottom' => ['borderStyle' => Border::BORDER_DOUBLE],
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'F3F4F6'],
-            ],
-        ]);
-
-        // Indicador de resultado (saldo favorable o mayor inversion)
-        $sheet->getStyle("D{$this->filaIndicador}")->applyFromArray([
-            'font' => ['bold' => true, 'italic' => true, 'size' => 11],
-        ]);
-
-        // Formato numerico para columna E (montos)
-        $sheet->getStyle("E1:E{$this->totalFilas}")
+        // Formato numerico para columnas de montos
+        $sheet->getStyle("E1:F{$this->totalFilas}")
             ->getNumberFormat()
             ->setFormatCode('#,##0.00');
 

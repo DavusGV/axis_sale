@@ -285,22 +285,35 @@ class BalanceController extends Controller
                 'fecha_inicio' => 'required|date',
                 'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
             ]);
- 
+
             $datos = $this->obtenerDatosBalance($request);
- 
+
+            // Separamos ventas de contado por metodo de pago
+            $ventasContado = $datos['ventas']->filter(fn($v) => $v->planPago === null);
+            $ventasCredito = $datos['ventas']->filter(fn($v) => $v->planPago !== null);
+            $ventasPorMetodo = $ventasContado->groupBy(fn($v) => $v->metodo_pago ?? 'Sin metodo');
+
+            $totalContado = $ventasContado->sum('total');
+            $totalAnticipos = $ventasCredito->sum('pago');
+            $totalAbonos = $datos['abonos']->sum('monto_pagado');
+
             $export = new BalanceReporteExport(
-                $datos['ventas'],
+                $ventasPorMetodo,
+                $ventasCredito,
                 $datos['abonos'],
                 $datos['gastos'],
                 $datos['fecha_inicio'],
                 $datos['fecha_fin'],
-                $datos['establecimiento_nombre']
+                $datos['establecimiento_nombre'],
+                round($totalContado, 2),
+                round($totalAnticipos, 2),
+                round($totalAbonos, 2)
             );
- 
+
             $nombreArchivo = 'balance_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.xlsx';
- 
+
             return Excel::download($export, $nombreArchivo);
- 
+
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al generar el reporte Excel: ' . $e->getMessage()
@@ -319,36 +332,51 @@ class BalanceController extends Controller
                 'fecha_inicio' => 'required|date',
                 'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
             ]);
- 
+
             $datos = $this->obtenerDatosBalance($request);
- 
-            // Calculamos los totales para la vista
-            $totalIngresos = $this->calcularTotalIngresos($datos['ventas'], $datos['abonos']);
-            $totalGastos   = $datos['gastos']->sum('monto');
-            $saldoNeto     = round($totalIngresos - $totalGastos, 2);
- 
-            // Obtenemos el logo del establecimiento
+
+            // Separamos ventas de contado por metodo de pago
+            $ventasContado = $datos['ventas']->filter(fn($v) => $v->planPago === null);
+            $ventasCredito = $datos['ventas']->filter(fn($v) => $v->planPago !== null);
+
+            // Agrupamos ventas de contado por metodo de pago
+            $ventasPorMetodo = $ventasContado->groupBy(function ($v) {
+                return $v->metodo_pago ?? 'Sin metodo';
+            });
+
+            // Totales
+            $totalContado = $ventasContado->sum('total');
+            $totalAnticipos = $ventasCredito->sum('pago');
+            $totalAbonos = $datos['abonos']->sum('monto_pagado');
+            $totalIngresos = round($totalContado + $totalAnticipos + $totalAbonos, 2);
+            $totalGastos = $datos['gastos']->sum('monto');
+            $saldoNeto = round($totalIngresos - $totalGastos, 2);
+
             $logo = $this->obtenerLogo();
- 
+
             $pdf = Pdf::loadView('pdf.balance_reporte', [
-                'ventas'         => $datos['ventas'],
-                'abonos'         => $datos['abonos'],
-                'gastos'         => $datos['gastos'],
-                'totalIngresos'  => $totalIngresos,
-                'totalGastos'    => $totalGastos,
-                'saldoNeto'      => $saldoNeto,
-                'fechaInicio'    => $datos['fecha_inicio'],
-                'fechaFin'       => $datos['fecha_fin'],
+                'ventasPorMetodo' => $ventasPorMetodo,
+                'ventasCredito'   => $ventasCredito,
+                'abonos'          => $datos['abonos'],
+                'gastos'          => $datos['gastos'],
+                'totalContado'    => round($totalContado, 2),
+                'totalAnticipos'  => round($totalAnticipos, 2),
+                'totalAbonos'     => round($totalAbonos, 2),
+                'totalIngresos'   => $totalIngresos,
+                'totalGastos'     => round($totalGastos, 2),
+                'saldoNeto'       => $saldoNeto,
+                'fechaInicio'     => $datos['fecha_inicio'],
+                'fechaFin'        => $datos['fecha_fin'],
                 'establecimiento' => $datos['establecimiento_nombre'],
-                'logo'           => $logo,
+                'logo'            => $logo,
             ]);
- 
+
             $pdf->setPaper('letter', 'portrait');
- 
+
             $nombreArchivo = 'balance_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.pdf';
- 
+
             return $pdf->stream($nombreArchivo);
- 
+
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al generar el reporte PDF: ' . $e->getMessage()
@@ -378,13 +406,14 @@ class BalanceController extends Controller
             ->orderBy('created_at', 'asc')
             ->get();
  
-        // Abonos a credito cobrados en el periodo
+        // Abonos a credito cobrados en el periodo con relaciones para mostrar folio y cliente
         $abonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
                 $q->where('establecimiento_id', $establecimiento_id)
-                  ->where('estado', '!=', 'cancelado');
+                ->where('estado', '!=', 'cancelado');
             })
             ->whereDate('fecha_pago', '>=', $fechaInicio)
             ->whereDate('fecha_pago', '<=', $fechaFin)
+            ->with(['plan.venta', 'plan.cliente'])
             ->orderBy('fecha_pago', 'asc')
             ->get();
  

@@ -15,36 +15,12 @@
         }
 
         /* ── Header ── */
-        .header {
-            width: 100%;
-            margin-bottom: 8px;
-        }
-
-        .header-table {
-            width: 100%;
-        }
-
-        .logo {
-            width: 70px;
-        }
-
-        .company-name {
-            font-size: 14px;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .company-sub {
-            text-align: center;
-            font-size: 9px;
-            color: #6b7280;
-        }
-
-        .header-right {
-            text-align: right;
-            font-size: 8px;
-            color: #6b7280;
-        }
+        .header { width: 100%; margin-bottom: 8px; }
+        .header-table { width: 100%; }
+        .logo { width: 70px; }
+        .company-name { font-size: 14px; font-weight: bold; text-align: center; }
+        .company-sub { text-align: center; font-size: 9px; color: #6b7280; }
+        .header-right { text-align: right; font-size: 8px; color: #6b7280; }
 
         .report-title-box {
             border: 1px solid #000;
@@ -55,20 +31,11 @@
             margin-top: 4px;
         }
 
-        /* ── Info del periodo ── */
-        .info {
-            width: 100%;
-            border: 1px solid #ccc;
-            margin-top: 6px;
-            margin-bottom: 8px;
-        }
+        /* ── Info ── */
+        .info { width: 100%; border: 1px solid #ccc; margin-top: 6px; margin-bottom: 8px; }
+        .info td { padding: 4px 6px; font-size: 9px; }
 
-        .info td {
-            padding: 4px 6px;
-            font-size: 9px;
-        }
-
-        /* ── Titulos de seccion ── */
+        /* ── Section titles ── */
         .section-title {
             margin-top: 10px;
             font-weight: bold;
@@ -78,41 +45,52 @@
             text-align: center;
         }
 
-        /* ── Tablas de datos ── */
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 4px;
+        .subsection-title {
+            margin-top: 8px;
+            font-weight: bold;
+            font-size: 9px;
+            padding: 3px 6px;
+            background: #f3f4f6;
+            border-left: 3px solid #000;
         }
 
+        .subsection-efectivo { border-left-color: #059669; }
+        .subsection-transferencia { border-left-color: #2563eb; }
+        .subsection-tarjeta { border-left-color: #7c3aed; }
+        .subsection-credito { border-left-color: #f59e0b; }
+        .subsection-otro { border-left-color: #6b7280; }
+
+        /* ── Tables ── */
+        .table { width: 100%; border-collapse: collapse; margin-top: 2px; }
         .table th {
             background: #e5e7eb;
             border: 1px solid #ccc;
-            padding: 3px 4px;
-            font-size: 8px;
+            padding: 2px 4px;
+            font-size: 7.5px;
             text-transform: uppercase;
         }
-
         .table td {
             border: 1px solid #ddd;
-            padding: 3px 4px;
+            padding: 2px 4px;
             font-size: 8px;
         }
+        .right { text-align: right; }
+        .center { text-align: center; }
 
-        .right {
-            text-align: right;
-        }
-
-        .center {
-            text-align: center;
-        }
-
-        /* ── Fila de subtotal ── */
+        /* ── Subtotals ── */
         .subtotal-row td {
             border-top: 2px solid #000;
             font-weight: bold;
             font-size: 9px;
-            padding: 4px;
+            padding: 3px 4px;
+        }
+
+        .subtotal-metodo td {
+            border-top: 1px solid #999;
+            font-weight: bold;
+            font-size: 8px;
+            padding: 3px 4px;
+            background: #fafafa;
         }
 
         /* ── Conteo ── */
@@ -120,45 +98,22 @@
             font-size: 7px;
             color: #9ca3af;
             text-align: right;
-            margin-top: 2px;
+            margin-top: 1px;
             margin-bottom: 4px;
         }
 
-        /* ── Resumen final ── */
-        .summary-container {
-            margin-top: 8px;
-            width: 50%;
-            margin-left: auto;
-        }
-
-        .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        /* ── Summary ── */
+        .summary-container { margin-top: 8px; width: 55%; margin-left: auto; }
+        .summary-table { width: 100%; border-collapse: collapse; }
         .summary-table td {
             border: 1px solid #ccc;
-            padding: 4px 6px;
-            font-size: 10px;
+            padding: 3px 6px;
+            font-size: 9px;
         }
-
-        .summary-title {
-            background: #f3f4f6;
-            font-weight: bold;
-        }
-
-        .summary-final {
-            font-weight: bold;
-            font-size: 11px;
-        }
-
-        .summary-final-positive {
-            color: #059669;
-        }
-
-        .summary-final-negative {
-            color: #dc2626;
-        }
+        .summary-title { background: #f3f4f6; font-weight: bold; }
+        .summary-final { font-weight: bold; font-size: 10px; border-top: 2px solid #000; }
+        .summary-final-positive { color: #059669; }
+        .summary-final-negative { color: #dc2626; }
 
         /* ── Footer ── */
         .footer {
@@ -173,12 +128,11 @@
             padding-top: 3px;
         }
 
-        /* ── Sin datos ── */
         .sin-datos {
             text-align: center;
             color: #9ca3af;
             font-style: italic;
-            padding: 10px;
+            padding: 8px;
             font-size: 9px;
         }
     </style>
@@ -214,67 +168,155 @@
     <table class="info">
         <tr>
             <td><strong>Periodo:</strong> {{ $fechaInicio }} al {{ $fechaFin }}</td>
-            <td><strong>Ventas registradas:</strong> {{ $ventas->count() }}</td>
-            <td><strong>Abonos recibidos:</strong> {{ $abonos->count() }}</td>
-            <td><strong>Gastos registrados:</strong> {{ $gastos->count() }}</td>
+            <td><strong>Ventas contado:</strong> {{ $ventasPorMetodo->flatten()->count() }}</td>
+            <td><strong>Ventas credito:</strong> {{ $ventasCredito->count() }}</td>
+            <td><strong>Abonos:</strong> {{ $abonos->count() }}</td>
+            <td><strong>Gastos:</strong> {{ $gastos->count() }}</td>
         </tr>
     </table>
 
-    <!-- SECCION: INGRESOS GENERADOS -->
+    <!-- ══════════════════════════════════════════════ -->
+    <!--           INGRESOS POR METODO DE PAGO         -->
+    <!-- ══════════════════════════════════════════════ -->
     <div class="section-title">Ingresos Generados</div>
 
-    @if($ventas->count() > 0 || $abonos->count() > 0)
+    {{-- Ventas de contado agrupadas por metodo de pago --}}
+    @php
+        $totalGeneralContado = 0;
+        // Mapa de clases CSS por metodo de pago
+        $clasesMetodo = [
+            'efectivo' => 'subsection-efectivo',
+            'transferencia' => 'subsection-transferencia',
+            'tarjeta' => 'subsection-tarjeta',
+        ];
+    @endphp
+
+    @forelse($ventasPorMetodo as $metodo => $ventasDelMetodo)
+        @php
+            $claseMetodo = $clasesMetodo[strtolower(trim($metodo))] ?? 'subsection-otro';
+            $subtotalMetodo = $ventasDelMetodo->sum('total');
+            $totalGeneralContado += $subtotalMetodo;
+        @endphp
+
+        <div class="subsection-title {{ $claseMetodo }}">
+            {{ $metodo }} (Contado)
+        </div>
+
         <table class="table">
             <thead>
                 <tr>
                     <th>Folio</th>
                     <th>Fecha</th>
-                    <th>Metodo de Pago</th>
-                    <th>Tipo</th>
+                    <th>Metodo</th>
                     <th class="right">Monto</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($ventas as $venta)
-                    @php
-                        $esCredito = $venta->planPago !== null;
-                        $tipo = $esCredito ? 'Credito (Anticipo)' : 'Contado';
-                        $monto = $esCredito ? $venta->pago : $venta->total;
-                    @endphp
+                @foreach($ventasDelMetodo as $venta)
                     <tr>
                         <td>{{ $venta->folio ?? 'S/F' }}</td>
                         <td>{{ $venta->created_at ? $venta->created_at->format('d/m/Y H:i') : '' }}</td>
                         <td>{{ $venta->metodo_pago }}</td>
-                        <td>{{ $tipo }}</td>
-                        <td class="right">${{ number_format($monto, 2) }}</td>
+                        <td class="right">${{ number_format($venta->total, 2) }}</td>
                     </tr>
                 @endforeach
 
-                @foreach($abonos as $abono)
+                <tr class="subtotal-metodo">
+                    <td colspan="3" class="right">Subtotal {{ $metodo }}</td>
+                    <td class="right">${{ number_format($subtotalMetodo, 2) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="conteo">{{ $ventasDelMetodo->count() }} venta(s)</div>
+    @empty
+        <p class="sin-datos">No se registraron ventas de contado en este periodo</p>
+    @endforelse
+
+    {{-- Seccion de creditos: anticipos + abonos --}}
+    @if($ventasCredito->count() > 0 || $abonos->count() > 0)
+
+        <div class="subsection-title subsection-credito">
+            Creditos (Anticipos y Abonos)
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Folio Venta</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Tipo</th>
+                    <th>Metodo</th>
+                    <th class="right">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{-- Anticipos de ventas a credito --}}
+                @foreach($ventasCredito as $venta)
+                    @php
+                        $clienteNombre = '';
+                        if ($venta->planPago && $venta->planPago->cliente) {
+                            $clienteNombre = $venta->planPago->cliente->nombre . ' ' . ($venta->planPago->cliente->apellido_p ?? '');
+                        }
+                    @endphp
                     <tr>
-                        <td>Abono a credito</td>
+                        <td>{{ $venta->folio ?? 'S/F' }}</td>
+                        <td>{{ $venta->created_at ? $venta->created_at->format('d/m/Y H:i') : '' }}</td>
+                        <td>{{ $clienteNombre ?: '-' }}</td>
+                        <td>Anticipo</td>
+                        <td>{{ $venta->metodo_pago }}</td>
+                        <td class="right">${{ number_format($venta->pago, 2) }}</td>
+                    </tr>
+                @endforeach
+
+                {{-- Abonos a credito con folio de la venta y cliente --}}
+                @foreach($abonos as $abono)
+                    @php
+                        $folioVenta = 'S/F';
+                        $clienteAbono = '-';
+                        if ($abono->plan) {
+                            if ($abono->plan->venta) {
+                                $folioVenta = $abono->plan->venta->folio ?? 'S/F';
+                            }
+                            if ($abono->plan->cliente) {
+                                $clienteAbono = $abono->plan->cliente->nombre . ' ' . ($abono->plan->cliente->apellido_p ?? '');
+                            }
+                        }
+                    @endphp
+                    <tr>
+                        <td>{{ $folioVenta }}</td>
                         <td>{{ \Carbon\Carbon::parse($abono->fecha_pago)->format('d/m/Y') }}</td>
+                        <td>{{ $clienteAbono }}</td>
+                        <td>Abono #{{ $abono->numero_cuota }}</td>
                         <td>{{ $abono->metodo_pago }}</td>
-                        <td>Abono</td>
                         <td class="right">${{ number_format($abono->monto_pagado, 2) }}</td>
                     </tr>
                 @endforeach
 
-                <tr class="subtotal-row">
-                    <td colspan="4" class="right">Subtotal Ingresos Brutos</td>
-                    <td class="right">${{ number_format($totalIngresos, 2) }}</td>
+                <tr class="subtotal-metodo">
+                    <td colspan="5" class="right">Subtotal Creditos (Anticipos + Abonos)</td>
+                    <td class="right">${{ number_format($totalAnticipos + $totalAbonos, 2) }}</td>
                 </tr>
             </tbody>
         </table>
 
         <div class="conteo">
-            {{ $ventas->count() }} venta(s) + {{ $abonos->count() }} abono(s) = {{ $ventas->count() + $abonos->count() }} registro(s)
+            {{ $ventasCredito->count() }} anticipo(s) + {{ $abonos->count() }} abono(s)
         </div>
-    @else
-        <p class="sin-datos">No se registraron ingresos en este periodo</p>
     @endif
 
-    <!-- SECCION: INVERSIONES REALIZADAS (GASTOS) -->
+    {{-- Subtotal general de ingresos --}}
+    <table class="table" style="margin-top: 4px;">
+        <tr class="subtotal-row">
+            <td colspan="3" class="right" style="border: none;">TOTAL INGRESOS BRUTOS</td>
+            <td class="right" style="border: 1px solid #000;">${{ number_format($totalIngresos, 2) }}</td>
+        </tr>
+    </table>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!--         INVERSIONES REALIZADAS (GASTOS)       -->
+    <!-- ══════════════════════════════════════════════ -->
     <div class="section-title">Inversiones Realizadas (Gastos)</div>
 
     @if($gastos->count() > 0)
@@ -306,14 +348,14 @@
             </tbody>
         </table>
 
-        <div class="conteo">
-            {{ $gastos->count() }} gasto(s) registrado(s)
-        </div>
+        <div class="conteo">{{ $gastos->count() }} gasto(s) registrado(s)</div>
     @else
         <p class="sin-datos">No se registraron gastos en este periodo</p>
     @endif
 
-    <!-- SECCION: RESULTADO DEL PERIODO -->
+    <!-- ══════════════════════════════════════════════ -->
+    <!--            RESULTADO DEL PERIODO              -->
+    <!-- ══════════════════════════════════════════════ -->
     <div class="section-title">Resultado del Periodo</div>
 
     <div class="summary-container">
@@ -323,8 +365,20 @@
                 <td class="right">Monto</td>
             </tr>
             <tr>
-                <td>Ingresos Brutos</td>
-                <td class="right">${{ number_format($totalIngresos, 2) }}</td>
+                <td>Ingresos por contado</td>
+                <td class="right">${{ number_format($totalContado, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Ingresos por anticipos (credito)</td>
+                <td class="right">${{ number_format($totalAnticipos, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Ingresos por abonos (credito)</td>
+                <td class="right">${{ number_format($totalAbonos, 2) }}</td>
+            </tr>
+            <tr style="border-top: 1px solid #000;">
+                <td><strong>Total Ingresos Brutos</strong></td>
+                <td class="right"><strong>${{ number_format($totalIngresos, 2) }}</strong></td>
             </tr>
             <tr>
                 <td>(-) Total Inversiones</td>

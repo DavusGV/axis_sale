@@ -114,8 +114,10 @@ class PagosPlanController extends Controller
             $pago->saldo_anterior    = $saldoAnterior;
             $pago->saldo_despues     = $saldoDespues;
             $pago->fecha_pago        = Carbon::now()->toDateString();
-            $pago->metodo_pago       = 'credito'; // siempre credito para identificarlo en ingresos
-            $pago->metodo_pago_id    = null;      // no aplica FK de metodos_pago
+            // Guardamos el metodo de pago real (efectivo, transferencia, etc.)
+            // para saber donde entro el dinero (caja o banco)
+            $pago->metodo_pago       = $request->metodo_pago ?? 'Efectivo';
+            $pago->metodo_pago_id    = $request->metodo_pago_id ?? null;
             $pago->notas             = $request->notas;
             $pago->save();
 
