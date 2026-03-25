@@ -8,6 +8,10 @@ use Exception;
 use App\Models\Ventas;
 use App\Models\Gastos;
 use App\Models\PagoPlan;
+use App\Models\UserEstablecimiento;
+use App\Exports\BalanceReporteExport;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 
 class BalanceController extends Controller
@@ -268,4 +272,196 @@ class BalanceController extends Controller
             return $this->InternalError('Error al obtener el desglose diario: ' . $e->getMessage());
         }
     }
+
+
+    /**
+     * Exportar balance en formato Excel (.xlsx)
+     * Recibe fecha_inicio y fecha_fin como parametros
+     */
+    public function exportExcel(Request $request)
+    {
+        try {
+            $request->validate([
+                'fecha_inicio' => 'required|date',
+                'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            ]);
+ 
+            $datos = $this->obtenerDatosBalance($request);
+ 
+            $export = new BalanceReporteExport(
+                $datos['ventas'],
+                $datos['abonos'],
+                $datos['gastos'],
+                $datos['fecha_inicio'],
+                $datos['fecha_fin'],
+                $datos['establecimiento_nombre']
+            );
+ 
+            $nombreArchivo = 'balance_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.xlsx';
+ 
+            return Excel::download($export, $nombreArchivo);
+ 
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte Excel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+ 
+    /**
+     * Exportar balance en formato PDF
+     * Recibe fecha_inicio y fecha_fin como parametros
+     */
+    public function exportPdf(Request $request)
+    {
+        try {
+            $request->validate([
+                'fecha_inicio' => 'required|date',
+                'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            ]);
+ 
+            $datos = $this->obtenerDatosBalance($request);
+ 
+            // Calculamos los totales para la vista
+            $totalIngresos = $this->calcularTotalIngresos($datos['ventas'], $datos['abonos']);
+            $totalGastos   = $datos['gastos']->sum('monto');
+            $saldoNeto     = round($totalIngresos - $totalGastos, 2);
+ 
+            // Obtenemos el logo del establecimiento
+            $logo = $this->obtenerLogo();
+ 
+            $pdf = Pdf::loadView('pdf.balance_reporte', [
+                'ventas'         => $datos['ventas'],
+                'abonos'         => $datos['abonos'],
+                'gastos'         => $datos['gastos'],
+                'totalIngresos'  => $totalIngresos,
+                'totalGastos'    => $totalGastos,
+                'saldoNeto'      => $saldoNeto,
+                'fechaInicio'    => $datos['fecha_inicio'],
+                'fechaFin'       => $datos['fecha_fin'],
+                'establecimiento' => $datos['establecimiento_nombre'],
+                'logo'           => $logo,
+            ]);
+ 
+            $pdf->setPaper('letter', 'portrait');
+ 
+            $nombreArchivo = 'balance_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.pdf';
+ 
+            return $pdf->stream($nombreArchivo);
+ 
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+ 
+    /**
+     * Metodo privado que consulta ventas, abonos y gastos del periodo
+     * Reutilizado tanto por Excel como por PDF
+     */
+    private function obtenerDatosBalance(Request $request): array
+    {
+        $establecimiento_id = app('establishment_id');
+        $fechaInicio = $request->fecha_inicio;
+        $fechaFin    = $request->fecha_fin;
+ 
+        // Ventas del periodo (no canceladas) con relacion planPago para saber si es credito
+        $ventas = Ventas::where('establecimiento_id', $establecimiento_id)
+            ->whereDate('created_at', '>=', $fechaInicio)
+            ->whereDate('created_at', '<=', $fechaFin)
+            ->where(function ($q) {
+                $q->where('status', '!=', 'cancelada')
+                  ->orWhereNull('status');
+            })
+            ->with('planPago')
+            ->orderBy('created_at', 'asc')
+            ->get();
+ 
+        // Abonos a credito cobrados en el periodo
+        $abonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id)
+                  ->where('estado', '!=', 'cancelado');
+            })
+            ->whereDate('fecha_pago', '>=', $fechaInicio)
+            ->whereDate('fecha_pago', '<=', $fechaFin)
+            ->orderBy('fecha_pago', 'asc')
+            ->get();
+ 
+        // Gastos activos del periodo con relacion de tipo
+        $gastos = Gastos::where('establecimiento_id', $establecimiento_id)
+            ->whereDate('fecha', '>=', $fechaInicio)
+            ->whereDate('fecha', '<=', $fechaFin)
+            ->where('state', 1)
+            ->with('tipoGasto')
+            ->orderBy('fecha', 'asc')
+            ->get();
+ 
+        // Nombre del establecimiento
+        $establecimientoNombre = '';
+        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
+ 
+        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
+            $establecimientoNombre = $userEstablecimiento->establecimiento->nombre;
+        }
+ 
+        return [
+            'ventas'                => $ventas,
+            'abonos'                => $abonos,
+            'gastos'                => $gastos,
+            'fecha_inicio'          => $fechaInicio,
+            'fecha_fin'             => $fechaFin,
+            'establecimiento_nombre' => $establecimientoNombre,
+        ];
+    }
+ 
+    /**
+     * Calcula el total de ingresos sumando ventas + abonos
+     * Ventas a credito: solo cuenta el anticipo (pago)
+     * Ventas de contado: cuenta el total
+     */
+    private function calcularTotalIngresos($ventas, $abonos): float
+    {
+        $ingresosVentas = $ventas->sum(function ($venta) {
+            if ($venta->planPago !== null) {
+                return $venta->pago;
+            }
+            return $venta->total;
+        });
+ 
+        $ingresosAbonos = $abonos->sum('monto_pagado');
+ 
+        return round($ingresosVentas + $ingresosAbonos, 2);
+    }
+ 
+    /**
+     * Obtiene el logo del establecimiento en base64
+     * Si no existe usa el logo por defecto
+     */
+    private function obtenerLogo(): ?string
+    {
+        $establecimiento_id = app('establishment_id');
+        $logo = null;
+
+        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
+
+        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
+            $establecimiento = $userEstablecimiento->establecimiento;
+
+            if (!empty($establecimiento->logo)) {
+                $logoPath = public_path('storage/' . $establecimiento->logo);
+                if (file_exists($logoPath)) {
+                    $logo = base64_encode(file_get_contents($logoPath));
+                }
+            }
+        }
+
+        // Sin logo por defecto para reportes financieros
+        return $logo;
+    }
+    
 }

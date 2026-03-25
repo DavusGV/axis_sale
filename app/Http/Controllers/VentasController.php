@@ -13,6 +13,9 @@ use App\Models\Ventas;
 use App\Models\VentasDetalles;
 use App\Models\UserEstablecimiento;
 use App\Models\{ConfiguracionEstablecimiento, Establecimiento};
+use App\Exports\VentasHistorialExport;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 
 class VentasController extends Controller
@@ -641,6 +644,215 @@ class VentasController extends Controller
                 'details' => $e->getMessage()
             ]);
         }
+    }
+
+    /**
+     * Exportar historial de ventas en formato Excel (.xlsx)
+     * Recibe fecha_inicio y fecha_fin como parametros
+     */
+    public function exportHistorialExcel(Request $request)
+    {
+        try {
+            $request->validate([
+                'desde' => 'nullable|date',
+                'hasta' => 'nullable|date',
+            ]);
+ 
+            $datos = $this->obtenerDatosHistorial($request);
+ 
+            $export = new VentasHistorialExport(
+                $datos['ventas'],
+                $datos['fecha_inicio'],
+                $datos['fecha_fin'],
+                $datos['establecimiento_nombre']
+            );
+ 
+            $nombreArchivo = 'historial_ventas_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.xlsx';
+ 
+            return Excel::download($export, $nombreArchivo);
+ 
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte Excel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+ 
+    /**
+     * Exportar historial de ventas en formato PDF
+     * Recibe fecha_inicio y fecha_fin como parametros
+     */
+    public function exportHistorialPdf(Request $request)
+    {
+        try {
+            $request->validate([
+                'desde' => 'nullable|date',
+                'hasta' => 'nullable|date',
+            ]);
+ 
+            $datos = $this->obtenerDatosHistorial($request);
+            $resumen = $this->calcularResumenHistorial($datos['ventas']);
+            $logo = $this->obtenerLogoEstablecimiento();
+ 
+            $pdf = Pdf::loadView('pdf.ventas_historial', [
+                'ventas'          => $datos['ventas'],
+                'resumen'         => $resumen,
+                'fechaInicio'     => $datos['fecha_inicio'],
+                'fechaFin'        => $datos['fecha_fin'],
+                'establecimiento' => $datos['establecimiento_nombre'],
+                'logo'            => $logo,
+            ]);
+ 
+            $pdf->setPaper('letter', 'landscape');
+ 
+            $nombreArchivo = 'historial_ventas_' . $datos['fecha_inicio'] . '_al_' . $datos['fecha_fin'] . '.pdf';
+ 
+            return $pdf->stream($nombreArchivo);
+ 
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+ 
+    /**
+     * Obtiene las ventas con sus detalles y relaciones para el periodo dado
+     * Reutilizando los filtros de la vista
+     */
+    private function obtenerDatosHistorial(Request $request): array
+    {
+        $establecimiento_id = app('establishment_id');
+
+        $query = Ventas::where('establecimiento_id', $establecimiento_id)
+            ->with([
+                'detalles.producto',
+                'planPago.cliente',
+            ]);
+
+        // Mismos filtros que el metodo historial()
+        if ($request->filled('desde')) {
+            $query->whereDate('created_at', '>=', $request->desde);
+        }
+        if ($request->filled('hasta')) {
+            $query->whereDate('created_at', '<=', $request->hasta);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('folio', 'like', "%{$search}%")
+                ->orWhere('metodo_pago', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $ventas = $query->orderBy('created_at', 'asc')->get();
+
+        // Nombre del establecimiento
+        $establecimientoNombre = '';
+        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
+
+        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
+            $establecimientoNombre = $userEstablecimiento->establecimiento->nombre;
+        }
+
+        return [
+            'ventas'                 => $ventas,
+            'fecha_inicio'           => $request->desde ?? 'Inicio',
+            'fecha_fin'              => $request->hasta ?? 'Actual',
+            'establecimiento_nombre' => $establecimientoNombre,
+        ];
+    }
+ 
+    /**
+     * Calcula el resumen completo del historial de ventas
+     * Totales, ganancias, descuentos, cancelaciones, etc.
+     */
+    private function calcularResumenHistorial($ventas): array
+    {
+        $totalVendido = 0;
+        $totalCancelado = 0;
+        $totalDescuentos = 0;
+        $totalIva = 0;
+        $totalCostoCompra = 0;
+        $totalGanancia = 0;
+        $cantProductos = 0;
+        $ventasActivas = 0;
+        $ventasCanceladas = 0;
+ 
+        foreach ($ventas as $venta) {
+            $esCancelada = ($venta->status ?? 'vendido') === 'cancelada';
+ 
+            if ($esCancelada) {
+                $totalCancelado += $venta->total;
+                $ventasCanceladas++;
+                continue;
+            }
+ 
+            $ventasActivas++;
+            $totalVendido += $venta->total;
+            $totalIva += ($venta->iva_total ?? 0);
+ 
+            foreach ($venta->detalles as $detalle) {
+                $precioVenta = $detalle->precio;
+                $precioCompra = $detalle->precio_compra ?? 0;
+                $cantidad = $detalle->cantidad;
+                $descuento = $detalle->descuento_aplicado ?? 0;
+                $subtotal = ($precioVenta * $cantidad) - $descuento;
+                $costoTotal = $precioCompra * $cantidad;
+ 
+                $totalDescuentos += $descuento;
+                $totalCostoCompra += $costoTotal;
+                $totalGanancia += ($subtotal - $costoTotal);
+                $cantProductos += $cantidad;
+            }
+        }
+ 
+        return [
+            'total_ventas'      => $ventas->count(),
+            'ventas_activas'    => $ventasActivas,
+            'ventas_canceladas' => $ventasCanceladas,
+            'total_productos'   => $cantProductos,
+            'total_descuentos'  => round($totalDescuentos, 2),
+            'total_iva'         => round($totalIva, 2),
+            'total_vendido'     => round($totalVendido, 2),
+            'total_cancelado'   => round($totalCancelado, 2),
+            'total_costo_compra' => round($totalCostoCompra, 2),
+            'ganancia_neta'     => round($totalGanancia, 2),
+        ];
+    }
+ 
+    /**
+     * Obtiene el logo del establecimiento en base64
+     * Sin logo por defecto para reportes
+     */
+    private function obtenerLogoEstablecimiento(): ?string
+    {
+        $establecimiento_id = app('establishment_id');
+        $logo = null;
+ 
+        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
+ 
+        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
+            $establecimiento = $userEstablecimiento->establecimiento;
+ 
+            if (!empty($establecimiento->logo)) {
+                $logoPath = public_path('storage/' . $establecimiento->logo);
+                if (file_exists($logoPath)) {
+                    $logo = base64_encode(file_get_contents($logoPath));
+                }
+            }
+        }
+ 
+        return $logo;
     }
 
 }

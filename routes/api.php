@@ -89,6 +89,8 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);
         Route::put('/{id}/metodo-pago', [VentasController::class, 'actualizarMetodoPago']);
         Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
+        Route::get('/historial/export/excel', [VentasController::class, 'exportHistorialExcel']);
+        Route::get('/historial/export/pdf',   [VentasController::class, 'exportHistorialPdf']);
     });
 
     // rutas de cotizaciones
@@ -174,8 +176,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     });
 
     Route::prefix('finance/balance')->group(function () {
-        Route::get('mensual',   [BalanceController::class, 'balanceMensual']);
-        Route::get('historial', [BalanceController::class, 'historial']);
+        Route::get('mensual',      [BalanceController::class, 'balanceMensual']);
+        Route::get('historial',    [BalanceController::class, 'historial']);
+        Route::get('export/excel', [BalanceController::class, 'exportExcel']);
+        Route::get('export/pdf',   [BalanceController::class, 'exportPdf']);
     });
 
     // clientes
