@@ -110,22 +110,22 @@ class CotizacionesController extends Controller
         try {
             $establecimiento_id = app('establishment_id');
 
-            // buscamos la caja abierta si existe, pero no es obligatoria
-            $caja          = Cajas::where('establecimiento_id', $establecimiento_id)->where('abierta', true)->first();
-            $historialCaja = null;
-            
+            // buscamos la caja abierta
+            $caja = Cajas::where('establecimiento_id', $establecimiento_id)
+                ->where('abierta', true)
+                ->first();
+
             if (!$caja) {
                 return $this->BadRequest('No hay una caja abierta para registrar la cotización.');
             }
 
+            // buscamos el historial de la caja abierta
+            $historialCaja = HistorialCajas::where('caja_id', $caja->id)
+                ->where('estado', 'abierta')
+                ->first();
+
             if (!$historialCaja) {
                 return $this->BadRequest('No se encontró un historial de caja abierto.');
-            }
-
-            if ($caja) {
-                $historialCaja = HistorialCajas::where('caja_id', $caja->id)
-                    ->where('estado', 'abierta')
-                    ->first();
             }
 
             // obtenemos la configuracion de iva del establecimiento
