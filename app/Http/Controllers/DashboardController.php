@@ -13,6 +13,10 @@ use App\Models\{
     VentasDetalles
 };
 use Carbon\Carbon;
+use App\Models\UserEstablecimiento;
+use App\Exports\DashboardExport;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Exception;
 
 class DashboardController extends Controller
@@ -229,5 +233,244 @@ class DashboardController extends Controller
                 'message' => $e->getMessage()
             ]);
         }
+    }
+
+    /**
+     * Exportar dashboard en formato Excel
+     */
+    public function exportExcel()
+    {
+        try {
+            $datos = $this->obtenerDatosDashboard();
+
+            $export = new DashboardExport(
+                $datos['data'],
+                $datos['establecimiento_nombre'],
+                $datos['fecha']
+            );
+
+            $nombreArchivo = 'dashboard_' . now()->format('Y-m-d') . '.xlsx';
+
+            return Excel::download($export, $nombreArchivo);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte Excel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Exportar dashboard en formato PDF
+     */
+    public function exportPdf()
+    {
+        try {
+            $datos = $this->obtenerDatosDashboard();
+            $logo  = obtenerLogoEstablecimiento();
+
+            $pdf = Pdf::loadView('pdf.dashboard_reporte', [
+                'data'            => $datos['data'],
+                'establecimiento' => $datos['establecimiento_nombre'],
+                'fecha'           => $datos['fecha'],
+                'logo'            => $logo,
+            ]);
+
+            $pdf->setPaper('letter', 'portrait');
+
+            $nombreArchivo = 'dashboard_' . now()->format('Y-m-d') . '.pdf';
+
+            return $pdf->stream($nombreArchivo);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el reporte PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtiene todos los datos del dashboard para reutilizar en exports
+     * Misma logica que index() pero retorna array en lugar de response
+     */
+    private function obtenerDatosDashboard(): array
+    {
+        $establecimiento_id = app('establishment_id');
+
+        // INGRESOS DEL DIA
+        $ventasHoy = Ventas::where('establecimiento_id', $establecimiento_id)
+            ->whereDate('created_at', Carbon::today())
+            ->where(function ($q) {
+                $q->where('status', '!=', 'cancelada')
+                  ->orWhereNull('status');
+            })
+            ->with('planPago')
+            ->get();
+
+        $ventasCreditoIds = $ventasHoy->filter(fn($v) => $v->planPago !== null)
+            ->pluck('id')
+            ->toArray();
+
+        $ingresosVentas = $ventasHoy->sum(function ($v) use ($ventasCreditoIds) {
+            if (in_array($v->id, $ventasCreditoIds)) {
+                return $v->pago;
+            }
+            return $v->total;
+        });
+
+        $ingresosAbonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id)
+                  ->where('estado', '!=', 'cancelado');
+            })
+            ->whereDate('fecha_pago', Carbon::today())
+            ->sum('monto_pagado');
+
+        $ingresosDia = round($ingresosVentas + $ingresosAbonos, 2);
+
+        // GASTOS DEL DIA
+        $gastosDia = round(Gastos::where('establecimiento_id', $establecimiento_id)
+            ->whereDate('fecha', Carbon::today())
+            ->where('state', 1)
+            ->sum('monto'), 2);
+
+        // GANANCIAS DEL DIA
+        $ventasHoy->load('detalles');
+        $gananciasDia = round($ventasHoy->sum(function ($venta) {
+            return $venta->detalles->sum(function ($detalle) {
+                return (($detalle->precio - $detalle->precio_compra) * $detalle->cantidad) - $detalle->descuento_aplicado;
+            });
+        }), 2);
+
+        // DESCUENTOS DEL DIA
+        $descuentosDia = round(VentasDetalles::whereHas('venta', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id)
+                ->whereDate('created_at', Carbon::today())
+                ->where(function ($q2) {
+                    $q2->where('status', '!=', 'cancelada')
+                        ->orWhereNull('status');
+                });
+            })
+            ->sum('descuento_aplicado'), 2);
+
+        // CREDITOS Y COTIZACIONES PENDIENTES
+        $creditosPendientes = PlanPago::where('establecimiento_id', $establecimiento_id)
+            ->where('estado', 'activo')
+            ->count();
+
+        $cotizacionesPendientes = Cotizacion::where('establecimiento_id', $establecimiento_id)
+            ->where('status', 'pendiente')
+            ->count();
+
+        // TENDENCIA SEMANAL
+        $inicioSemana = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+        $finSemana = Carbon::now()->endOfWeek(Carbon::SATURDAY);
+
+        $ventasSemana = Ventas::where('establecimiento_id', $establecimiento_id)
+            ->whereBetween('created_at', [$inicioSemana, $finSemana])
+            ->where(function ($q) {
+                $q->where('status', '!=', 'cancelada')
+                  ->orWhereNull('status');
+            })
+            ->selectRaw('DATE(created_at) as fecha, SUM(total) as total')
+            ->groupBy('fecha')
+            ->pluck('total', 'fecha');
+
+        $diasSemana = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+        $tendenciaSemanal = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $fecha = $inicioSemana->copy()->addDays($i)->format('Y-m-d');
+            $tendenciaSemanal[] = [
+                'dia'   => $diasSemana[$i],
+                'fecha' => $fecha,
+                'total' => round($ventasSemana->get($fecha, 0), 2),
+            ];
+        }
+
+        // STOCK
+        $productosStockBajo = Products::where('establecimiento_id', $establecimiento_id)
+            ->where('es_servicio', false)
+            ->where('stock', '<', 10)
+            ->orderBy('stock', 'asc')
+            ->get(['id', 'nombre', 'stock']);
+
+        $stockCero = $productosStockBajo->where('stock', '<=', 0)->values()->toArray();
+        $stockBajo = $productosStockBajo->where('stock', '>', 0)->values()->toArray();
+
+        // TOP PRODUCTOS
+        $topProductos = VentasDetalles::whereHas('venta', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id)
+                  ->where(function ($q2) {
+                      $q2->where('status', '!=', 'cancelada')
+                         ->orWhereNull('status');
+                  });
+            })
+            ->selectRaw('producto_id, SUM(cantidad) as total_vendido')
+            ->groupBy('producto_id')
+            ->orderByDesc('total_vendido')
+            ->take(3)
+            ->get();
+
+        $topProductos->load('producto:id,nombre');
+
+        $topProductosData = $topProductos->map(function ($item) {
+            return [
+                'producto_id'   => $item->producto_id,
+                'nombre'        => $item->producto->nombre ?? 'Producto eliminado',
+                'total_vendido' => (int) $item->total_vendido,
+            ];
+        })->toArray();
+
+        // VENTAS DEL DIA PRODUCTOS
+        $ventasDiaProductos = VentasDetalles::whereHas('venta', function ($q) use ($establecimiento_id) {
+                $q->where('establecimiento_id', $establecimiento_id)
+                  ->whereDate('created_at', Carbon::today())
+                  ->where(function ($q2) {
+                      $q2->where('status', '!=', 'cancelada')
+                         ->orWhereNull('status');
+                  });
+            })
+            ->selectRaw('producto_id, SUM(cantidad) as total_vendido')
+            ->groupBy('producto_id')
+            ->orderByDesc('total_vendido')
+            ->get();
+
+        $ventasDiaProductos->load('producto:id,nombre');
+
+        $ventasDiaData = $ventasDiaProductos->map(function ($item) {
+            return [
+                'producto_id'   => $item->producto_id,
+                'nombre'        => $item->producto->nombre ?? 'Producto eliminado',
+                'total_vendido' => (int) $item->total_vendido,
+            ];
+        })->toArray();
+
+        // Nombre del establecimiento
+        $establecimientoNombre = '';
+        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
+            ->where('establecimiento_id', $establecimiento_id)
+            ->first();
+
+        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
+            $establecimientoNombre = $userEstablecimiento->establecimiento->nombre;
+        }
+
+        return [
+            'data' => [
+                'ingresos_dia'            => $ingresosDia,
+                'gastos_dia'              => $gastosDia,
+                'ganancias'               => $gananciasDia,
+                'descuentos'              => $descuentosDia,
+                'creditos_pendientes'     => $creditosPendientes,
+                'cotizaciones_pendientes' => $cotizacionesPendientes,
+                'tendencia_semanal'       => $tendenciaSemanal,
+                'stock_cero'              => $stockCero,
+                'stock_bajo'              => $stockBajo,
+                'top_productos'           => $topProductosData,
+                'ventas_dia_productos'    => $ventasDiaData,
+            ],
+            'establecimiento_nombre' => $establecimientoNombre,
+            'fecha'                  => now()->format('d/m/Y H:i'),
+        ];
     }
 }

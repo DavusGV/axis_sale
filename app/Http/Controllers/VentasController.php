@@ -692,7 +692,7 @@ class VentasController extends Controller
  
             $datos = $this->obtenerDatosHistorial($request);
             $resumen = $this->calcularResumenHistorial($datos['ventas']);
-            $logo = $this->obtenerLogoEstablecimiento();
+            $logo = obtenerLogoEstablecimiento();
  
             $pdf = Pdf::loadView('pdf.ventas_historial', [
                 'ventas'          => $datos['ventas'],
@@ -826,33 +826,6 @@ class VentasController extends Controller
             'total_costo_compra' => round($totalCostoCompra, 2),
             'ganancia_neta'     => round($totalGanancia, 2),
         ];
-    }
- 
-    /**
-     * Obtiene el logo del establecimiento en base64
-     * Sin logo por defecto para reportes
-     */
-    private function obtenerLogoEstablecimiento(): ?string
-    {
-        $establecimiento_id = app('establishment_id');
-        $logo = null;
- 
-        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
-            ->where('establecimiento_id', $establecimiento_id)
-            ->first();
- 
-        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
-            $establecimiento = $userEstablecimiento->establecimiento;
- 
-            if (!empty($establecimiento->logo)) {
-                $logoPath = public_path('storage/' . $establecimiento->logo);
-                if (file_exists($logoPath)) {
-                    $logo = base64_encode(file_get_contents($logoPath));
-                }
-            }
-        }
- 
-        return $logo;
     }
 
 }

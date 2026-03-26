@@ -352,7 +352,7 @@ class BalanceController extends Controller
             $totalGastos = $datos['gastos']->sum('monto');
             $saldoNeto = round($totalIngresos - $totalGastos, 2);
 
-            $logo = $this->obtenerLogo();
+            $logo = obtenerLogoEstablecimiento();
 
             $pdf = Pdf::loadView('pdf.balance_reporte', [
                 'ventasPorMetodo' => $ventasPorMetodo,
@@ -463,34 +463,6 @@ class BalanceController extends Controller
         $ingresosAbonos = $abonos->sum('monto_pagado');
  
         return round($ingresosVentas + $ingresosAbonos, 2);
-    }
- 
-    /**
-     * Obtiene el logo del establecimiento en base64
-     * Si no existe usa el logo por defecto
-     */
-    private function obtenerLogo(): ?string
-    {
-        $establecimiento_id = app('establishment_id');
-        $logo = null;
-
-        $userEstablecimiento = UserEstablecimiento::with('establecimiento')
-            ->where('establecimiento_id', $establecimiento_id)
-            ->first();
-
-        if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
-            $establecimiento = $userEstablecimiento->establecimiento;
-
-            if (!empty($establecimiento->logo)) {
-                $logoPath = public_path('storage/' . $establecimiento->logo);
-                if (file_exists($logoPath)) {
-                    $logo = base64_encode(file_get_contents($logoPath));
-                }
-            }
-        }
-
-        // Sin logo por defecto para reportes financieros
-        return $logo;
     }
     
 }

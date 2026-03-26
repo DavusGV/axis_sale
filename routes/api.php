@@ -77,8 +77,11 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         });
 
     #endregion Buildings Routes demo
-
-    Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::prefix('dashboard')->group(function () {
+        Route::get('/',             [DashboardController::class, 'index']);
+        Route::get('/export/excel', [DashboardController::class, 'exportExcel']);
+        Route::get('/export/pdf',   [DashboardController::class, 'exportPdf']);
+    });
 
     Route::prefix('ventas')->group(function () {
         Route::get('/products', [VentasController::class, 'index']);
