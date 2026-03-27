@@ -275,6 +275,23 @@ class VentasController extends Controller
         }
     }
 
+    // verificar stock de productos especificos antes de vender
+    public function verificarStock(Request $request)
+    {
+        try {
+            $ids = $request->input('producto_ids', []);
+            
+            $productos = Products::whereIn('id', $ids)
+                ->select('id', 'nombre', 'stock', 'es_servicio')
+                ->get()
+                ->keyBy('id');
+
+            return response()->json(['productos' => $productos]);
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al verificar stock.']);
+        }
+    }
+
     // genera un folio unico por establecimiento con formato VTA-XX26001
     private function generarFolio(int $establecimiento_id): string
     {
@@ -511,8 +528,11 @@ class VentasController extends Controller
             $config  = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimiento_id)->first();
             $modoIva = $config->modo_iva ?? 'sin_iva';
 
-            // ids de detalles que vienen en la peticion
-            $idsRecibidos = collect($request->detalles)->pluck('detalle_id')->filter()->toArray();
+            // ids de detalles que vienen en la peticion (excluyendo los nuevos con id 0)
+            $idsRecibidos = collect($request->detalles)
+                ->pluck('detalle_id')
+                ->filter(fn($id) => $id > 0)
+                ->toArray();
 
             // detalles que se eliminaron: devolver stock
             $detallesToDelete = $venta->detalles()->whereNotIn('id', $idsRecibidos)->get();
@@ -530,32 +550,73 @@ class VentasController extends Controller
             $nuevoDescuentoTotal = 0;
 
             foreach ($request->detalles as $item) {
-                $detalle = VentasDetalles::find($item['detalle_id']);
-                if (!$detalle || $detalle->venta_id !== $venta->id) continue;
 
-                $producto = $detalle->producto;
+                // producto nuevo que se agrega a la venta
+                if (empty($item['detalle_id']) || $item['detalle_id'] == 0) {
+                    $producto = Products::lockForUpdate()->find($item['producto_id']);
 
-                // ajustamos stock por la diferencia de cantidad
-                if ($producto && !$producto->es_servicio) {
-                    $diferencia = $item['cantidad'] - $detalle->cantidad;
-                    if ($diferencia > 0 && $producto->stock < $diferencia) {
+                    if (!$producto) {
                         DB::rollBack();
-                        return $this->BadRequest([
-                            'message' => "Stock insuficiente de: {$producto->nombre}. Disponible: {$producto->stock}"
-                        ]);
+                        return $this->BadRequest('Producto no encontrado.');
                     }
-                    $producto->stock -= $diferencia;
-                    $producto->save();
+
+                    // validamos stock solo si no es servicio
+                    if (!$producto->es_servicio && $producto->stock < $item['cantidad']) {
+                        DB::rollBack();
+                        return $this->BadRequest(
+                            "Stock insuficiente de: {$producto->nombre}. Disponible: {$producto->stock}"
+                        );
+                    }
+
+                    // restamos stock si no es servicio
+                    if (!$producto->es_servicio) {
+                        $producto->stock -= $item['cantidad'];
+                        $producto->save();
+                    }
+
+                    $detalle = new VentasDetalles();
+                    $detalle->venta_id           = $venta->id;
+                    $detalle->producto_id        = $item['producto_id'];
+                    $detalle->cantidad           = $item['cantidad'];
+                    $detalle->precio             = $item['precio'];
+                    $detalle->precio_compra      = $producto->precio_compra;
+                    $detalle->subtotal           = $item['precio'] * $item['cantidad'];
+                    $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
+                    $detalle->descuento          = $item['descuento'] ?? 0;
+                    $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
+                    $detalle->iva_porcentaje     = $producto->iva ?? 0;
+                    $detalle->save();
+
+                } else {
+                    // detalle existente que se actualiza
+                    $detalle = VentasDetalles::find($item['detalle_id']);
+                    if (!$detalle || $detalle->venta_id !== $venta->id) continue;
+
+                    $producto = $detalle->producto;
+
+                    // ajustamos stock por la diferencia de cantidad
+                    if ($producto && !$producto->es_servicio) {
+                        $diferencia = $item['cantidad'] - $detalle->cantidad;
+                        if ($diferencia > 0 && $producto->stock < $diferencia) {
+                            DB::rollBack();
+                            return $this->BadRequest([
+                                'message' => "Stock insuficiente de: {$producto->nombre}. Disponible: {$producto->stock}"
+                            ]);
+                        }
+                        $producto->stock -= $diferencia;
+                        $producto->save();
+                    }
+
+                    $detalle->cantidad           = $item['cantidad'];
+                    $detalle->precio             = $item['precio'];
+                    $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
+                    $detalle->descuento          = $item['descuento'] ?? 0;
+                    $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
+                    $detalle->subtotal           = $item['precio'] * $item['cantidad'];
+                    $detalle->save();
                 }
 
-                $detalle->cantidad           = $item['cantidad'];
-                $detalle->precio             = $item['precio'];
-                $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
-                $detalle->descuento          = $item['descuento'] ?? 0;
-                $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
-                $detalle->subtotal           = $item['precio'] * $item['cantidad'];
-                $detalle->save();
-
+                // calculo de iva igual para ambos casos
                 $subtotalNeto  = $detalle->subtotal - $detalle->descuento_aplicado;
                 $ivaPorcentaje = $detalle->iva_porcentaje ?? 0;
                 $ivaMonto      = 0;

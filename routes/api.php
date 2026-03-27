@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/products', [VentasController::class, 'index']);
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
+        Route::post('/verificar-stock', [VentasController::class, 'verificarStock']);
         Route::get('/{id}/ticket', [VentasController::class, 'ticket']);
         Route::get('/historial', [VentasController::class, 'historial']);
         Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);

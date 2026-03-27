@@ -230,8 +230,11 @@ class CotizacionesController extends Controller
             $config  = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimiento_id)->first();
             $modoIva = $config->modo_iva ?? 'sin_iva';
 
-            // ids de detalles que vienen en la peticion (los que sobreviven)
-            $idsRecibidos = collect($request->detalles)->pluck('cotizacion_detalle_id')->filter()->toArray();
+            // ids de detalles que vienen en la peticion (excluyendo nuevos con id 0)
+            $idsRecibidos = collect($request->detalles)
+                ->pluck('cotizacion_detalle_id')
+                ->filter(fn($id) => $id > 0)
+                ->toArray();
 
             // eliminamos los detalles que el operador quito
             $cotizacion->detalles()
@@ -242,17 +245,42 @@ class CotizacionesController extends Controller
             $nuevoIvaTotal = 0;
 
             foreach ($request->detalles as $item) {
-                $detalle = CotizacionDetalle::find($item['cotizacion_detalle_id']);
-                if (!$detalle || $detalle->cotizacion_id !== $cotizacion->id) continue;
 
-                $detalle->cantidad           = $item['cantidad'];
-                $detalle->precio             = $item['precio'];
-                $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
-                $detalle->descuento          = $item['descuento'] ?? 0;
-                $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
-                $detalle->subtotal           = $item['precio'] * $item['cantidad'];
-                $detalle->save();
+                // producto nuevo que se agrega a la cotizacion
+                if (empty($item['cotizacion_detalle_id']) || $item['cotizacion_detalle_id'] == 0) {
+                    $producto = Products::find($item['producto_id']);
 
+                    if (!$producto) continue;
+
+                    $detalle = new CotizacionDetalle();
+                    $detalle->cotizacion_id      = $cotizacion->id;
+                    $detalle->producto_id        = $item['producto_id'];
+                    $detalle->nombre_producto    = $producto->nombre;
+                    $detalle->precio             = $item['precio'];
+                    $detalle->precio_compra      = $producto->precio_compra;
+                    $detalle->cantidad           = $item['cantidad'];
+                    $detalle->subtotal           = $item['precio'] * $item['cantidad'];
+                    $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
+                    $detalle->descuento          = $item['descuento'] ?? 0;
+                    $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
+                    $detalle->iva_porcentaje     = $producto->iva ?? 0;
+                    $detalle->save();
+
+                } else {
+                    // detalle existente que se actualiza
+                    $detalle = CotizacionDetalle::find($item['cotizacion_detalle_id']);
+                    if (!$detalle || $detalle->cotizacion_id !== $cotizacion->id) continue;
+
+                    $detalle->cantidad           = $item['cantidad'];
+                    $detalle->precio             = $item['precio'];
+                    $detalle->tipo_descuento     = $item['tipo_descuento'] ?? null;
+                    $detalle->descuento          = $item['descuento'] ?? 0;
+                    $detalle->descuento_aplicado = $item['descuento_aplicado'] ?? 0;
+                    $detalle->subtotal           = $item['precio'] * $item['cantidad'];
+                    $detalle->save();
+                }
+
+                // calculo de iva igual para ambos casos
                 $subtotalNeto  = $detalle->subtotal - $detalle->descuento_aplicado;
                 $ivaPorcentaje = $detalle->iva_porcentaje ?? 0;
                 $ivaMonto      = 0;
