@@ -74,6 +74,10 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
         Route::prefix('category')->group(function () {
             Route::get('/', [CategoryController::class, 'index']);
+            Route::get('/list', [CategoryController::class, 'list']);
+            Route::post('/', [CategoryController::class, 'store']);
+            Route::put('/{id}', [CategoryController::class, 'update']);
+            Route::delete('/{id}', [CategoryController::class, 'eliminarCategoria']);
         });
 
     #endregion Buildings Routes demo
