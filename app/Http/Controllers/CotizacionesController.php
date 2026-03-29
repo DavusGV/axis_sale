@@ -9,16 +9,21 @@ use Exception;
 use App\Models\Cotizacion;
 use App\Models\CotizacionDetalle;
 use App\Models\{ConfiguracionEstablecimiento, Establecimiento, Ventas, Products, Cajas, HistorialCajas, VentasDetalles};
+use App\Services\TicketService;
 use Carbon\Carbon;
 
 class CotizacionesController extends Controller
 {
-    public function __construct()
+    protected $ticketService;
+
+    public function __construct(TicketService $ticketService)
     {
-        // configuramos la zona horaria mexicana igual que en VentasController
+        // configuramos la zona horaria mexicana
         date_default_timezone_set('America/Mexico_City');
         Carbon::setLocale('es');
         Carbon::now()->setTimezone('America/Mexico_City');
+
+        $this->ticketService = $ticketService;
     }
 
     public function index(Request $request)
@@ -137,7 +142,10 @@ class CotizacionesController extends Controller
 
             foreach ($request->detalles as $detalle) {
                 $producto = Products::find($detalle['producto_id']);
-                if (!$producto) continue;
+                if (!$producto) {
+                    DB::rollBack();
+                    return $this->BadRequest("Producto no encontrado");
+                }
 
                 $subtotalNeto  = ($detalle['precio'] * $detalle['cantidad']) - ($detalle['descuento_aplicado'] ?? 0);
                 $ivaPorcentaje = $producto->iva ?? 0;
@@ -179,6 +187,11 @@ class CotizacionesController extends Controller
             // guardamos los detalles sin tocar el stock
             foreach ($request->detalles as $detalle) {
                 $producto = Products::find($detalle['producto_id']);
+
+                if (!$producto) {
+                    DB::rollBack();
+                    return $this->BadRequest("Producto no encontrado");
+                }
 
                 $detalleCotizacion                    = new CotizacionDetalle();
                 $detalleCotizacion->cotizacion_id      = $cotizacion->id;
@@ -250,7 +263,10 @@ class CotizacionesController extends Controller
                 if (empty($item['cotizacion_detalle_id']) || $item['cotizacion_detalle_id'] == 0) {
                     $producto = Products::find($item['producto_id']);
 
-                    if (!$producto) continue;
+                    if (!$producto) {
+                        DB::rollBack();
+                        return $this->BadRequest('Producto no encontrado.');
+                    }
 
                     $detalle = new CotizacionDetalle();
                     $detalle->cotizacion_id      = $cotizacion->id;
@@ -269,7 +285,10 @@ class CotizacionesController extends Controller
                 } else {
                     // detalle existente que se actualiza
                     $detalle = CotizacionDetalle::find($item['cotizacion_detalle_id']);
-                    if (!$detalle || $detalle->cotizacion_id !== $cotizacion->id) continue;
+                    if (!$detalle || $detalle->cotizacion_id !== $cotizacion->id) {
+                        DB::rollBack();
+                        return $this->BadRequest('Detalle de cotizacion no valido o no pertenece a esta cotizacion.');
+                    }
 
                     $detalle->cantidad           = $item['cantidad'];
                     $detalle->precio             = $item['precio'];
@@ -336,89 +355,32 @@ class CotizacionesController extends Controller
         return 'COT-' . $iniciales . $anio . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
     }
 
+    // utilidad si se desea compartir desde email o mensaje
     public function ticketCotizacion(int $id)
     {
         try {
-            $cotizacion = Cotizacion::with([
-                'detalles.producto',
-                'establecimiento',
-                'cliente',
-            ])->findOrFail($id);
-
-            $config       = ConfiguracionEstablecimiento::where('establecimiento_id', $cotizacion->establecimiento_id)->first();
-            $formatoHora  = $config->formato_hora ?? '12h';
-            $formatoFecha = $config->formato_fecha ?? 'd/m/Y';
-
-            // convertimos el logo a base64 igual que en ventas
-            $logoBase64 = null;
-            if ($cotizacion->establecimiento && $cotizacion->establecimiento->logo) {
-                $logoPath = storage_path('app/public/' . $cotizacion->establecimiento->logo);
-                if (file_exists($logoPath)) {
-                    $contenido  = file_get_contents($logoPath);
-                    $mime       = mime_content_type($logoPath);
-                    $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode($contenido);
-                }
-            }
-
-            // armamos los productos con sus calculos de iva
-            $productos = $cotizacion->detalles->map(function ($detalle) use ($cotizacion) {
-                $subtotalNeto  = $detalle->subtotal - $detalle->descuento_aplicado;
-                $ivaPorcentaje = $detalle->iva_porcentaje ?? 0;
-                $ivaMonto      = 0;
-
-                if ($cotizacion->modo_iva === 'iva_incluido' && $ivaPorcentaje > 0) {
-                    $ivaMonto = $subtotalNeto - ($subtotalNeto / (1 + $ivaPorcentaje / 100));
-                } elseif ($cotizacion->modo_iva === 'iva_adicional' && $ivaPorcentaje > 0) {
-                    $ivaMonto = $subtotalNeto * ($ivaPorcentaje / 100);
-                }
-
-                return [
-                    'nombre'             => $detalle->nombre_producto,
-                    'imagen_url'         => optional($detalle->producto)->imagen_url ?? null,
-                    'cantidad'           => $detalle->cantidad,
-                    'precio_unitario'    => $detalle->precio,
-                    'subtotal_bruto'     => $detalle->subtotal,
-                    'tipo_descuento'     => $detalle->tipo_descuento,
-                    'descuento'          => $detalle->descuento,
-                    'descuento_aplicado' => $detalle->descuento_aplicado,
-                    'subtotal_neto'      => $subtotalNeto,
-                    'iva_porcentaje'     => $ivaPorcentaje,
-                    'iva_monto'          => round($ivaMonto, 2),
-                ];
-            });
-
-            return $this->Success([
-                'ticket' => [
-                    'id'              => $cotizacion->id,
-                    'folio'           => $cotizacion->folio,
-                    'status'          => $cotizacion->status,
-                    'modo_iva'        => $cotizacion->modo_iva,
-                    'iva_total'       => $cotizacion->iva_total,
-                    'fecha'           => $cotizacion->created_at->format($formatoFecha . ' ' . ($formatoHora === '12h' ? 'h:i A' : 'H:i')),
-                    'expires_at'      => $cotizacion->expires_at
-                        ? Carbon::parse($cotizacion->expires_at)->format($formatoFecha)
-                        : null,
-                    'subtotal'        => $cotizacion->subtotal,
-                    'total'           => $cotizacion->total,
-                    'notas'           => $cotizacion->notas,
-                    'establecimiento' => optional($cotizacion->establecimiento)->nombre,
-                    'logo_url'        => $logoBase64,
-                    'formato_hora'    => $formatoHora,
-                    'formato_fecha'   => $formatoFecha,
-                    'num_cuenta'      => $config->num_cuenta ?? null,
-                    'cliente'         => [
-                        'nombre'    => optional($cotizacion->cliente)->nombre,
-                        'apellido'  => optional($cotizacion->cliente)->apellido_p,
-                        'telefono'  => optional($cotizacion->cliente)->telefono ?? null,
-                    ],
-                    'productos'       => $productos,
-                    'venta_folio'     => $cotizacion->venta_folio,
-                ]
-            ]);
-
+            $ticket = $this->ticketService->generarTicketCotizacion($id);
+            return $this->Success(['ticket' => $ticket]);
         } catch (Exception $e) {
             return $this->InternalError([
                 'error'   => 'Error al obtener el ticket de cotizacion.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Descarga el ticket de cotizacion desde backend
+    public function descargarTicketPdf(int $id)
+    {
+        try {
+            $pdf = $this->ticketService->generarPdfCotizacion($id);
+            $cotizacion = Cotizacion::find($id);
+            $nombreArchivo = 'cotizacion-' . ($cotizacion->folio ?? 'cot-' . $id) . '.pdf';
+
+            return $pdf->stream($nombreArchivo);
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar el PDF de la cotizacion.',
                 'details' => $e->getMessage()
             ]);
         }
@@ -514,7 +476,7 @@ class CotizacionesController extends Controller
             }
 
             // delegamos al store de ventas, el maneja su propia transaccion
-            $ventasController = new VentasController();
+            $ventasController = app(VentasController::class);
             $response         = $ventasController->store($request);
             $responseData     = json_decode($response->getContent(), true);
 
@@ -524,12 +486,21 @@ class CotizacionesController extends Controller
             }
 
             // la venta fue exitosa, ahora actualizamos la cotizacion
-            // este save es simple, no necesita transaccion propia
-            $cotizacion->status       = 'vendido';
-            $cotizacion->venta_id     = $responseData['data']['venta']['id'];
-            $cotizacion->venta_folio  = $responseData['data']['venta']['folio'];
-            $cotizacion->converted_at = Carbon::now();
-            $cotizacion->save();
+            try {
+                $cotizacion->status       = 'vendido';
+                $cotizacion->venta_id     = $responseData['data']['venta']['id'];
+                $cotizacion->venta_folio  = $responseData['data']['venta']['folio'];
+                $cotizacion->converted_at = Carbon::now();
+                $cotizacion->save();
+            } catch (Exception $e) {
+                // la venta ya se registro, devolvemos la respuesta con una advertencia
+                // para que el usuario sepa que la venta existe aunque la cotizacion no se actualizo
+                return $this->Success([
+                    'message' => 'Venta registrada pero la cotizacion no se pudo actualizar.',
+                    'venta'   => $responseData['data']['venta'],
+                    'warning' => $e->getMessage(),
+                ]);
+            }
 
             // devolvemos la respuesta de ventas tal cual para el ticket
             return $response;

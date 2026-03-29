@@ -92,6 +92,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/store', [VentasController::class, 'store']);
         Route::post('/read-code', [VentasController::class, 'leerCodigoBarras']);
         Route::post('/verificar-stock', [VentasController::class, 'verificarStock']);
+        Route::get('/{id}/ticket-pdf', [VentasController::class, 'descargarTicketPdf']);
         Route::get('/{id}/ticket', [VentasController::class, 'ticket']);
         Route::get('/historial', [VentasController::class, 'historial']);
         Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);
@@ -106,6 +107,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/',                     [CotizacionesController::class, 'index']);
         Route::post('/',                    [CotizacionesController::class, 'store']);
         Route::put('/{id}/detalles',        [CotizacionesController::class, 'actualizarDetalles']);
+        Route::get('/{id}/ticket-pdf', [CotizacionesController::class, 'descargarTicketPdf']);
         Route::get('/{id}/ticket',          [CotizacionesController::class, 'ticketCotizacion']);
         Route::get('/{id}/comprobar',       [CotizacionesController::class, 'comprobarStock']);
         Route::post('/{id}/convertir',      [CotizacionesController::class, 'convertirVenta']);

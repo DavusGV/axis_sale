@@ -16,11 +16,14 @@ use App\Models\{ConfiguracionEstablecimiento, Establecimiento};
 use App\Exports\VentasHistorialExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\TicketService;
 use Carbon\Carbon;
 
 class VentasController extends Controller
 {
-    public function __construct()
+    protected $ticketService;
+
+    public function __construct(TicketService $ticketService)
     {
         // Configuramos la zona horaria mexicana para este controlador
         date_default_timezone_set('America/Mexico_City');
@@ -28,6 +31,8 @@ class VentasController extends Controller
         // También configuramos Carbon para usar la misma zona horaria
         Carbon::setLocale('es');
         Carbon::now()->setTimezone('America/Mexico_City');
+        
+        $this->ticketService = $ticketService;
     }
 
     public function index(Request $request)
@@ -112,7 +117,10 @@ class VentasController extends Controller
 
             foreach ($request->detalles as $detalle) {
                 $producto = Products::find($detalle['producto_id']);
-                if (!$producto) continue;
+                if (!$producto) {
+                    DB::rollBack();
+                    return $this->BadRequest("Producto no encontrado");
+                }
 
                 $subtotalNeto = ($detalle['precio'] * $detalle['cantidad']) - ($detalle['descuento_aplicado'] ?? 0);
                 $ivaPorcentaje = $producto->iva ?? 0;
@@ -193,6 +201,38 @@ class VentasController extends Controller
                 // guardamos el iva del producto en el momento de la venta
                 $ventaDetalle->iva_porcentaje     = $producto->iva ?? null;
                 $ventaDetalle->save();
+            }
+
+            // si viene datos de credito, delegamos al PlanesPagoController
+            // dentro de la misma transaccion para que si falla se revierta todo
+            if ($request->filled('credito')) {
+                $creditoData = $request->credito;
+
+                // requets
+                $planRequest = new Request([
+                    'cliente_id'     => $creditoData['cliente_id'],
+                    'venta_id'       => $venta->id,
+                    'total_venta'    => $venta->total,
+                    'interes_tipo'   => $creditoData['interes_tipo'] ?? null,
+                    'interes_valor'  => $creditoData['interes_valor'] ?? 0,
+                    'anticipo'       => $creditoData['anticipo'] ?? 0,
+                    'num_plazos'     => $creditoData['num_plazos'],
+                    'tipo_plazo'     => $creditoData['tipo_plazo'],
+                    'intervalo_dias' => $creditoData['intervalo_dias'] ?? null,
+                    'fecha_inicio'   => $creditoData['fecha_inicio'] ?? now()->toDateString(),
+                    'observaciones'  => $creditoData['observaciones'] ?? null,
+                    'usuario_id'     => $request->usuario_id,
+                ]);
+
+                $planController = app(PlanesPagoController::class);
+                $planResponse   = $planController->store($planRequest);
+                $planStatus     = $planResponse->getStatusCode();
+
+                // si el plan fallo, revertimos toda la transaccion incluyendo la venta
+                if ($planStatus !== 200) {
+                    DB::rollBack();
+                    return $planResponse;
+                }
             }
 
             DB::commit();
@@ -309,106 +349,34 @@ class VentasController extends Controller
         return 'VTA-' . $iniciales . $anio . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
     }
 
+    // utilidad si se desea compartir desde email o mensaje
     public function ticket(int $id)
     {
         try {
-            $venta = Ventas::with([
-                'detalles.producto',   // productos con su imagen y nombre
-                'establecimiento',     // nombre y logo del negocio
-                'planPago.cliente',    // plan de credito y cliente si aplica
-            ])->findOrFail($id);
-
-            // obtenemos la configuracion del establecimiento para formatos del ticket
-            $config = ConfiguracionEstablecimiento::where('establecimiento_id', $venta->establecimiento_id)->first();
-            $formatoHora  = $config->formato_hora ?? '12h';
-            $formatoFecha = $config->formato_fecha ?? 'd/m/Y';
-
-            // convertimos el logo a base64 para evitar problemas de CORS en el frontend
-            $logoBase64 = null;
-            if ($venta->establecimiento && $venta->establecimiento->logo) {
-                $logoPath = storage_path('app/public/' . $venta->establecimiento->logo);
-                if (file_exists($logoPath)) {
-                    $contenido = file_get_contents($logoPath);
-                    $mime      = mime_content_type($logoPath);
-                    $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode($contenido);
-                }
-            }
-
-            // armamos los productos con los datos que necesita el ticket
-            $productos = $venta->detalles->map(function ($detalle) use ($venta) {
-                $subtotalNeto  = $detalle->subtotal - $detalle->descuento_aplicado;
-                $ivaPorcentaje = $detalle->iva_porcentaje ?? 0;
-                $ivaMonto      = 0;
-
-                if ($venta->modo_iva === 'iva_incluido' && $ivaPorcentaje > 0) {
-                    $ivaMonto = $subtotalNeto - ($subtotalNeto / (1 + $ivaPorcentaje / 100));
-                } elseif ($venta->modo_iva === 'iva_adicional' && $ivaPorcentaje > 0) {
-                    $ivaMonto = $subtotalNeto * ($ivaPorcentaje / 100);
-                }
-
-                return [
-                    'detalle_id'         => $detalle->id,
-                    'producto_id'        => $detalle->producto_id,
-                    'es_servicio'        => $detalle->producto->es_servicio ?? false,
-                    'stock_disponible'   => $detalle->producto ? $detalle->producto->stock : 0,
-                    'precio_compra'      => $detalle->precio_compra,
-                    'nombre'             => $detalle->producto->nombre ?? 'Producto eliminado',
-                    'imagen_url'         => $detalle->producto->imagen_url ?? null,
-                    'cantidad'           => $detalle->cantidad,
-                    'precio_unitario'    => $detalle->precio,
-                    'subtotal_bruto'     => $detalle->subtotal,
-                    'tipo_descuento'     => $detalle->tipo_descuento,
-                    'descuento'          => $detalle->descuento,
-                    'descuento_aplicado' => $detalle->descuento_aplicado,
-                    'subtotal_neto'      => $subtotalNeto,
-                    'iva_porcentaje'     => $ivaPorcentaje,
-                    'iva_monto'          => round($ivaMonto, 2),
-                ];
-            });
-
-            // datos del plan de credito si existe
-            $planPago = null;
-            if ($venta->planPago) {
-                $plan = $venta->planPago;
-                $planPago = [
-                    'cliente'          => optional($plan->cliente)->nombre . ' ' . optional($plan->cliente)->apellido_p,
-                    'total_a_pagar'    => $plan->total_a_pagar,
-                    'anticipo'         => $plan->anticipo,
-                    'saldo_pendiente'  => $plan->saldo_pendiente,
-                    'num_plazos'       => $plan->num_plazos,
-                    'tipo_plazo'       => $plan->tipo_plazo,
-                    'intervalo_dias'   => $plan->intervalo_dias,
-                    'monto_cuota'      => $plan->monto_cuota,
-                    'fecha_inicio'       => Carbon::parse($plan->fecha_inicio)->format($formatoFecha),
-                    'fecha_proximo_pago' => Carbon::parse($plan->fecha_proximo_pago)->format($formatoFecha),
-                    'interes_aplicado' => $plan->interes_aplicado,
-                ];
-            }
-
-            return $this->Success([
-                'ticket' => [
-                    'id'               => $venta->id,
-                    'folio'            => $venta->folio,
-                    'modo_iva'         => $venta->modo_iva,
-                    'iva_total'        => $venta->iva_total,
-                    'fecha'            => $venta->created_at->format($formatoFecha . ' ' . ($formatoHora === '12h' ? 'h:i A' : 'H:i')),
-                    'metodo_pago'      => $venta->metodo_pago,
-                    'pago'             => $venta->pago,
-                    'cambio'           => $venta->cambio,
-                    'subtotal'         => $venta->subtotal,
-                    'total'            => $venta->total,
-                    'establecimiento'  => optional($venta->establecimiento)->nombre,
-                    'logo_url'         => $logoBase64,
-                    'formato_hora'     => $formatoHora,
-                    'formato_fecha'    => $formatoFecha,
-                    'num_cuenta'       => $config->num_cuenta ?? null,
-                    'productos'        => $productos,
-                    'es_credito'       => $venta->planPago !== null,
-                    'plan_pago'        => $planPago,
-                ]
-            ]);
+            $ticket = $this->ticketService->generarTicketVenta($id);
+            return $this->Success(['ticket' => $ticket]);
         } catch (Exception $e) {
-            return $this->InternalError(['error' => 'Error al obtener el ticket.', 'details' => $e->getMessage()]);
+            return $this->InternalError([
+                'error'   => 'Error al obtener el ticket.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Descarga el ticket de venta backend
+    public function descargarTicketPdf(int $id)
+    {
+        try {
+            $pdf = $this->ticketService->generarPdfVenta($id);
+            $venta = Ventas::find($id);
+            $nombreArchivo = 'ticket-' . ($venta->folio ?? 'venta-' . $id) . '.pdf';
+
+            return $pdf->stream($nombreArchivo);
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar el PDF del ticket.',
+                'details' => $e->getMessage()
+            ]);
         }
     }
 
@@ -466,6 +434,21 @@ class VentasController extends Controller
                         ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
                         : null,
                     'num_productos' => $venta->detalles->sum('cantidad'),
+                    'detalles'      => $venta->detalles->map(function ($d) {
+                        return [
+                            'detalle_id'        => $d->id,
+                            'producto_id'       => $d->producto_id,
+                            'nombre'            => $d->nombre_producto ?? optional($d->producto)->nombre ?? 'Producto eliminado',
+                            'cantidad'          => $d->cantidad,
+                            'precio'            => $d->precio,
+                            'precio_compra'     => $d->precio_compra,
+                            'es_servicio'       => optional($d->producto)->es_servicio ?? false,
+                            'stock_disponible'  => optional($d->producto)->stock ?? 0,
+                            'tipo_descuento'    => $d->tipo_descuento,
+                            'descuento'         => $d->descuento,
+                            'descuento_aplicado'=> $d->descuento_aplicado,
+                        ];
+                    }),
                 ];
             }
 
@@ -590,9 +573,12 @@ class VentasController extends Controller
                 } else {
                     // detalle existente que se actualiza
                     $detalle = VentasDetalles::find($item['detalle_id']);
-                    if (!$detalle || $detalle->venta_id !== $venta->id) continue;
+                    if (!$detalle || $detalle->venta_id !== $venta->id) {
+                        DB::rollBack();
+                        return $this->BadRequest('Detalle de venta no valido o no pertenece a esta venta.');
+                    }
 
-                    $producto = $detalle->producto;
+                    $producto = Products::lockForUpdate()->find($detalle->producto_id);
 
                     // ajustamos stock por la diferencia de cantidad
                     if ($producto && !$producto->es_servicio) {
@@ -674,7 +660,7 @@ class VentasController extends Controller
 
             // devolvemos el stock de cada producto que no sea servicio
             foreach ($venta->detalles as $detalle) {
-                $producto = $detalle->producto;
+                $producto = Products::lockForUpdate()->find($detalle->producto_id);
                 if ($producto && !$producto->es_servicio) {
                     $producto->stock += $detalle->cantidad;
                     $producto->save();
