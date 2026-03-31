@@ -79,13 +79,16 @@ class CotizacionesController extends Controller
                     'status'      => $cot->status,
                     'total'       => $cot->total,
                     'notas'       => $cot->notas,
+                    'cliente_id'  => $cot->cliente_id,
                     'expires_at'  => $cot->expires_at
                         ? Carbon::parse($cot->expires_at)->format('d/m/Y')
                         : null,
                     'created_at'  => Carbon::parse($cot->created_at)->format('d/m/Y h:i A'),
                     'cliente'     => [
+                        'id'        => optional($cot->cliente)->id,
                         'nombre'    => optional($cot->cliente)->nombre,
                         'apellido_p'=> optional($cot->cliente)->apellido_p,
+                        'telefono1' => optional($cot->cliente)->telefono1, 
                     ],
                     'detalles'    => $cot->detalles,
                 ];
@@ -473,6 +476,11 @@ class CotizacionesController extends Controller
                 return $this->BadRequest([
                     'message' => 'No hay una caja abierta para registrar la venta.'
                 ]);
+            }
+
+            // si el frontend no lo mando, lo tomamos de la cotizacion
+            if ($cotizacion->cliente_id && !$request->has('cliente_id')) {
+                $request->merge(['cliente_id' => $cotizacion->cliente_id]);
             }
 
             // delegamos al store de ventas, el maneja su propia transaccion

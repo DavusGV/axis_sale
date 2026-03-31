@@ -18,6 +18,7 @@ class TicketService
             'detalles.producto',
             'establecimiento',
             'planPago.cliente',
+            'cliente',
             'usuario',
         ])->findOrFail($id);
 
@@ -31,6 +32,16 @@ class TicketService
 
         // plan de pago si es credito
         $ticket['plan_pago'] = null;
+        // cliente directo de la venta (contado con cliente registrado)
+        // si es credito, el cliente ya viene dentro de plan_pago
+        $ticket['cliente'] = null;
+        if (!$venta->planPago && $venta->cliente) {
+            $ticket['cliente'] = [
+                'nombre'   => $venta->cliente->nombre,
+                'apellido' => $venta->cliente->apellido_p,
+                'telefono' => $venta->cliente->telefono1 ?? null,
+            ];
+        }
         if ($venta->planPago) {
             $plan = $venta->planPago;
             $config = $this->obtenerConfiguracion($venta->establecimiento_id);

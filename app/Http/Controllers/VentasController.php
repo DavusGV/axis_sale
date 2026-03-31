@@ -150,6 +150,8 @@ class VentasController extends Controller
             $venta->establecimiento_id  = $establecimiento_id;
             $venta->historial_caja_id   = $historialCaja->id;
             $venta->usuario_id          = $request->usuario_id;
+            // cliente opcional: puede venir en venta directa o en credito
+            $venta->cliente_id          = $request->cliente_id ?? $request->credito['cliente_id'] ?? null;
             $venta->folio               = $this->generarFolio($establecimiento_id);
             $venta->modo_iva            = $modoIva;
             $venta->iva_total           = round($ivaTotalVenta, 2);
@@ -386,7 +388,8 @@ class VentasController extends Controller
         try {
             $establecimiento_id = app('establishment_id');
 
-            $query = Ventas::with(['detalles.producto', 'planPago.cliente', 'establecimiento'])
+            // cargamos el cliente directo de la venta y tambien por plan de pago si es credito
+            $query = Ventas::with(['detalles.producto', 'planPago.cliente', 'cliente', 'establecimiento'])
                 ->where('establecimiento_id', $establecimiento_id);
 
             // filtro por rango de fechas
@@ -430,9 +433,13 @@ class VentasController extends Controller
                     'pago'          => $venta->pago,
                     'cambio'        => $venta->cambio,
                     'es_credito'    => $venta->planPago !== null,
-                    'cliente'       => $venta->planPago?->cliente
-                        ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
-                        : null,
+                    // primero revisamos si hay cliente directo en la venta,
+                    // si no, tomamos el del plan de pago (ventas a credito anteriores)
+                    'cliente' => $venta->cliente
+                        ? $venta->cliente->nombre . ' ' . $venta->cliente->apellido_p
+                        : ($venta->planPago?->cliente
+                            ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
+                            : null),
                     'num_productos' => $venta->detalles->sum('cantidad'),
                     'detalles'      => $venta->detalles->map(function ($d) {
                         return [
@@ -775,6 +782,7 @@ class VentasController extends Controller
             ->with([
                 'detalles.producto',
                 'planPago.cliente',
+                'cliente',
             ]);
 
         // Mismos filtros que el metodo historial()
