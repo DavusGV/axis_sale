@@ -13,6 +13,13 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
+
+        // envia recordatorios de pago cada dia a las 8:00 AM hora Mexico
+        $schedule->command('recordatorios:pago')->dailyAt('08:00');
+
+        // actualiza estados de creditos segun fechas y pagos
+        // se corre cada hora para que el cambio no tarde todo el dia en reflejarse
+        $schedule->command('creditos:actualizar-estados')->hourly();
     }
 
     /**

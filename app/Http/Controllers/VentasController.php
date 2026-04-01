@@ -161,6 +161,7 @@ class VentasController extends Controller
             $venta->metodo_pago         = $request->metodo_pago;
             $venta->metodo_pago_id      = $request->metodo_pago_id ?? null;
             $venta->subtotal            = $request->total; // total sin descuentos ni iva
+            $venta->status              = $request->filled('credito') ? 'pendiente' : 'vendido';// si viene credito la venta arranca como pendiente hasta que se liquide
             $venta->created_at          = Carbon::now();
 
             $venta->save();
