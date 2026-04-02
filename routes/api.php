@@ -168,6 +168,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
      Route::prefix('finance')->group(function () {
         Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);
+        Route::get('/getMovimientos', [IngresosControlador::class, 'getMovimientos']);
         Route::post('/tgasto', [GastosController::class, 'storeType']);
         Route::get('/tgasto', [GastosController::class, 'indexType']);
         Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
