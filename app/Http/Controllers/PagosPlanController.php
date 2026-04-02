@@ -14,6 +14,7 @@ use App\Models\HistorialCajas;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ConfirmacionPagoPlan;
+use App\Services\TicketService;
 
 class PagosPlanController extends Controller
 {
@@ -196,6 +197,40 @@ class PagosPlanController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             return $this->InternalError(['error' => 'Error al registrar pago.', 'details' => $e->getMessage()]);
+        }
+    }
+
+    public function ticketAbono($planId, $pagoId)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $plan = PlanPago::with(['cliente', 'venta.establecimiento'])
+                ->where('id', $planId)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->first();
+
+            if (!$plan) {
+                return $this->BadRequest('Plan de pago no encontrado.');
+            }
+
+            $pago = PagoPlan::where('id', $pagoId)
+                ->where('plan_pago_id', $planId)
+                ->first();
+
+            if (!$pago) {
+                return $this->BadRequest('Pago no encontrado.');
+            }
+
+            $ticketService = app(\App\Services\TicketService::class);
+            $pdf = $ticketService->generarPdfAbono($plan, $pago);
+
+            $nombreArchivo = 'abono-cuota' . $pago->numero_cuota . '-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf';
+
+            return $pdf->download($nombreArchivo);
+
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al generar ticket de abono.', 'details' => $e->getMessage()]);
         }
     }
 }

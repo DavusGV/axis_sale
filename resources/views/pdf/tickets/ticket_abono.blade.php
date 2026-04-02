@@ -219,7 +219,6 @@
     @endif
 
     @if(!empty($ticket['notas']))
-        <hr class="sep" />
         <div class="sec-titulo">NOTAS</div>
         <div style="font-size: 6.5px; padding: 0.5mm 0;">{{ $ticket['notas'] }}</div>
     @endif

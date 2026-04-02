@@ -213,11 +213,6 @@
         </tr></table>
     @endif
 
-    <table class="fila"><tr>
-        <td class="l">TOTAL FINANCIADO:</td>
-        <td class="v">${{ number_format($ticket['total_financiado'], 2) }}</td>
-    </tr></table>
-
     {{-- SALDO PENDIENTE RESALTADO --}}
     <table class="fila-total"><tr>
         <td class="l">SALDO PEND.:</td>
