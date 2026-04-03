@@ -428,6 +428,7 @@ class VentasController extends Controller
                     'status'        => $venta->status ?? 'vendida',
                     'fecha'         => $venta->created_at->format('d/m/Y H:i'),
                     'metodo_pago'   => $venta->metodo_pago,
+                    'metodo_pago_id'=> $venta->metodo_pago_id,
                     'subtotal'      => $venta->subtotal,
                     'iva_total'     => $venta->iva_total,
                     'total'         => $venta->total,

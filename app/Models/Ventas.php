@@ -23,6 +23,11 @@ class Ventas extends Model
         'modo_iva',
         'iva_total',
     ];
+
+    protected $casts = [
+        'status' => 'string',
+    ];
+
     public function planPago()
     {
         return $this->hasOne(PlanPago::class, 'venta_id');
