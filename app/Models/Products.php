@@ -22,6 +22,7 @@ class Products extends Model
         'imagen',
         'iva',
         'es_servicio',
+        'unidad_medida',
     ];
 
     // para construir la ruta de la imagen
