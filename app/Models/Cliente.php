@@ -32,4 +32,14 @@ class Cliente extends Model
     {
         return $this->belongsTo(Establecimiento::class, 'establecimiento_id');
     }
+
+    public function ventas()
+    {
+        return $this->hasMany(Ventas::class, 'cliente_id');
+    }
+
+    public function cotizaciones()
+    {
+        return $this->hasMany(Cotizacion::class, 'cliente_id');
+    }
 }

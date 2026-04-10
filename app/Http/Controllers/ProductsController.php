@@ -36,6 +36,7 @@ class ProductsController extends Controller
                     'precio_venta' => $item->precio_venta,
                     'iva' => $item->iva,
                     'es_servicio' => $item->es_servicio,
+                    'unidad_medida' => $item->unidad_medida,
                     'servicio' => $item->es_servicio ? 'Servicio' : 'Producto',
                     'stock' => $item->stock,
                     'clave' => $item->clave,

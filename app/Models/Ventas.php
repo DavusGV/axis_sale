@@ -12,6 +12,7 @@ class Ventas extends Model
         'establecimiento_id',
         'historial_caja_id',
         'usuario_id',
+        'cliente_id',
         'total',
         'pago',
         'cambio',
@@ -22,6 +23,11 @@ class Ventas extends Model
         'modo_iva',
         'iva_total',
     ];
+
+    protected $casts = [
+        'status' => 'string',
+    ];
+
     public function planPago()
     {
         return $this->hasOne(PlanPago::class, 'venta_id');
@@ -47,6 +53,11 @@ class Ventas extends Model
     {
         return $this->belongsTo(HistorialCajas::class, 'historial_caja_id');
 
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
     }
 }
 

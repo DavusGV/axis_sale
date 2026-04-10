@@ -168,4 +168,122 @@ class IngresosControlador extends Controller
             ]);
         }
     }
+
+    public function getMovimientos()
+    {
+        try {
+            $idestablishment = $this->request->get('idestablishment');
+            $month           = $this->request->get('month');
+            $year            = $this->request->get('year');
+            $perPage         = (int) $this->request->get('per_page', 20);
+
+            $movimientos = collect();
+
+            // ventas del mes no canceladas con planPago para detectar tipo
+            $ventas = Ventas::where('establecimiento_id', $idestablishment)
+                ->whereYear('created_at', $year)
+                ->whereMonth('created_at', $month)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
+                ->with('planPago')
+                ->get();
+
+            // separar ids de creditos con plan ligado
+            $ventasCreditoIds = $ventas->filter(fn($v) => $v->planPago !== null)
+                ->pluck('id')
+                ->toArray();
+
+            // ventas huerfanas (metodo credito sin plan): se excluyen
+            $ventasHuerfanas = $ventas->filter(function ($v) use ($ventasCreditoIds) {
+                return !in_array($v->id, $ventasCreditoIds)
+                    && strtolower(trim($v->metodo_pago ?? '')) === 'credito';
+            })->pluck('id')->toArray();
+
+            foreach ($ventas as $venta) {
+                // excluir huerfanas
+                if (in_array($venta->id, $ventasHuerfanas)) {
+                    continue;
+                }
+
+                if (in_array($venta->id, $ventasCreditoIds)) {
+                    // no registrar anticipos sin monto, no hubo entrada de dinero
+                    if ($venta->pago <= 0) {
+                        continue;
+                    }
+                    $movimientos->push([
+                        'tipo'        => 'Anticipo',
+                        'folio'       => $venta->folio,
+                        'metodo_pago' => 'Efectivo',
+                        'monto'       => round($venta->pago, 2),
+                        'fecha'       => $venta->created_at->format('d/m/Y'),
+                        'fecha_sort'  => $venta->created_at,
+                    ]);
+                } else {
+                    // es contado
+                    $movimientos->push([
+                        'tipo'        => 'Venta contado',
+                        'folio'       => $venta->folio,
+                        'metodo_pago' => $venta->metodo_pago ?? 'Sin metodo',
+                        'monto'       => round($venta->total, 2),
+                        'fecha'       => $venta->created_at->format('d/m/Y'),
+                        'fecha_sort'  => $venta->created_at,
+                    ]);
+                }
+            }
+
+            // abonos del mes con plan no cancelado
+            $abonos = PagoPlan::whereHas('plan', function ($q) use ($idestablishment) {
+                    $q->where('establecimiento_id', $idestablishment)
+                    ->where('estado', '!=', 'cancelado');
+                })
+                ->whereYear('fecha_pago', $year)
+                ->whereMonth('fecha_pago', $month)
+                ->with('plan.venta')
+                ->get();
+
+            foreach ($abonos as $abono) {
+                $folio = $abono->plan && $abono->plan->venta
+                    ? $abono->plan->venta->folio
+                    : 'Sin folio';
+
+                $movimientos->push([
+                    'tipo'        => 'Abono credito',
+                    'folio'       => $folio,
+                    'metodo_pago' => $abono->metodo_pago ?? 'Sin metodo',
+                    'monto'       => round($abono->monto_pagado, 2),
+                    'fecha'       => $abono->fecha_pago->format('d/m/Y'),
+                    'fecha_sort'  => $abono->fecha_pago,
+                ]);
+            }
+
+            // ordenar por fecha y paginar manualmente
+            $movimientos = $movimientos->sortBy('fecha_sort')->values();
+
+            $total    = $movimientos->count();
+            $page     = (int) $this->request->get('page', 1);
+            $offset   = ($page - 1) * $perPage;
+            $items    = $movimientos->slice($offset, $perPage)->values();
+
+            // quitar fecha_sort del resultado final
+            $items = $items->map(fn($m) => collect($m)->except('fecha_sort')->all());
+
+            return $this->Success([
+                'movimientos'  => $items,
+                'total'        => $total,
+                'por_pagina'   => $perPage,
+                'pagina_actual' => $page,
+                'ultima_pagina' => (int) ceil($total / $perPage),
+                'mes'          => (int) $month,
+                'anio'         => (int) $year,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al cargar los movimientos del mes',
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
 }

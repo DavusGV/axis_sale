@@ -25,6 +25,7 @@ class ProductsService
             $query->where(function ($q) use ($search) {
                 $q->where('nombre', 'like', "%{$search}%")
                 ->orWhere('codigo', 'like', "%{$search}%")
+                ->orWhere('unidad_medida', 'like', "%{$search}%")
                 ->orWhere('descripcion', 'like', "%{$search}%");
             });
         }

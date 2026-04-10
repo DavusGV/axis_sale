@@ -168,6 +168,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
 
      Route::prefix('finance')->group(function () {
         Route::post('/getIncome', [IngresosControlador::class, 'getIncome']);
+        Route::get('/getMovimientos', [IngresosControlador::class, 'getMovimientos']);
         Route::post('/tgasto', [GastosController::class, 'storeType']);
         Route::get('/tgasto', [GastosController::class, 'indexType']);
         Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
@@ -203,14 +204,16 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     });
 
     Route::prefix('planes-pago')->group(function () {
-        Route::get('/',       [PlanesPagoController::class, 'index']);
-        Route::post('/',      [PlanesPagoController::class, 'store']);
-        Route::get('/{id}',   [PlanesPagoController::class, 'show']);
+        Route::get('/',                    [PlanesPagoController::class, 'index']);
+        Route::post('/',                   [PlanesPagoController::class, 'store']);
+        Route::get('/{id}',                [PlanesPagoController::class, 'show']);
+        Route::get('/{id}/ticket-pdf',     [PlanesPagoController::class, 'ticketCredito']);
     });
 
     Route::prefix('planes-pago/{planId}/pagos')->group(function () {
-        Route::get('/',  [PagosPlanController::class, 'index']);
-        Route::post('/', [PagosPlanController::class, 'store']);
+        Route::get('/',                        [PagosPlanController::class, 'index']);
+        Route::post('/',                       [PagosPlanController::class, 'store']);
+        Route::get('/{pagoId}/ticket-pdf',     [PagosPlanController::class, 'ticketAbono']);
     });
 
 });

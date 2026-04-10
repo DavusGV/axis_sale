@@ -50,9 +50,20 @@ class BalanceController extends Controller
                 ->pluck('id')
                 ->toArray();
 
-            // ventas de contado: usar total (lo que vale la venta)
-            // ventas a credito: usar pago (el anticipo que realmente entro)
-            $ingresosVentas = $ventasMes->sum(function ($v) use ($ventasCreditoIds) {
+            // ventas con metodo credito pero sin plan ligado son datos huerfanos
+            // se excluyen igual que en getIncome()
+            $ventasHuerfanas = $ventasMes->filter(function ($v) use ($ventasCreditoIds) {
+                return !in_array($v->id, $ventasCreditoIds)
+                    && strtolower(trim($v->metodo_pago ?? '')) === 'credito';
+            })->pluck('id')->toArray();
+
+            // ventas de contado: usar total
+            // ventas a credito con plan: usar pago (anticipo)
+            // ventas a credito sin plan (huerfanas): excluir
+            $ingresosVentas = $ventasMes->sum(function ($v) use ($ventasCreditoIds, $ventasHuerfanas) {
+                if (in_array($v->id, $ventasHuerfanas)) {
+                    return 0;
+                }
                 if (in_array($v->id, $ventasCreditoIds)) {
                     return $v->pago;
                 }
@@ -130,7 +141,16 @@ class BalanceController extends Controller
                     ->pluck('id')
                     ->toArray();
 
-                $ingresosVentas = $ventasMes->sum(function ($v) use ($ventasCreditoIds) {
+                // excluir huerfanas igual que balanceMensual
+                $ventasHuerfanas = $ventasMes->filter(function ($v) use ($ventasCreditoIds) {
+                    return !in_array($v->id, $ventasCreditoIds)
+                        && strtolower(trim($v->metodo_pago ?? '')) === 'credito';
+                })->pluck('id')->toArray();
+
+                $ingresosVentas = $ventasMes->sum(function ($v) use ($ventasCreditoIds, $ventasHuerfanas) {
+                    if (in_array($v->id, $ventasHuerfanas)) {
+                        return 0;
+                    }
                     if (in_array($v->id, $ventasCreditoIds)) {
                         return $v->pago;
                     }
@@ -203,11 +223,20 @@ class BalanceController extends Controller
             $ventasCreditoIds = $ventasMes->filter(fn($v) => $v->planPago !== null)
                 ->pluck('id')
                 ->toArray();
+                
+            // ventas con metodo credito sin plan son huerfanas, se excluyen
+            $ventasHuerfanas = $ventasMes->filter(function ($v) use ($ventasCreditoIds) {
+                return !in_array($v->id, $ventasCreditoIds)
+                    && strtolower(trim($v->metodo_pago ?? '')) === 'credito';
+            })->pluck('id')->toArray();
 
-            // agrupar por dia sumando correctamente
+            // agrupar por dia sumando correctamente, excluyendo huerfanas
             $ventasPorDia = $ventasMes->groupBy(fn($v) => $v->created_at->day)
-                ->map(function ($ventas) use ($ventasCreditoIds) {
-                    return $ventas->sum(function ($v) use ($ventasCreditoIds) {
+                ->map(function ($ventas) use ($ventasCreditoIds, $ventasHuerfanas) {
+                    return $ventas->sum(function ($v) use ($ventasCreditoIds, $ventasHuerfanas) {
+                        if (in_array($v->id, $ventasHuerfanas)) {
+                            return 0;
+                        }
                         if (in_array($v->id, $ventasCreditoIds)) {
                             return $v->pago;
                         }
@@ -225,18 +254,6 @@ class BalanceController extends Controller
                 ->selectRaw('DAY(fecha_pago) as dia, SUM(monto_pagado) as total')
                 ->groupBy('dia')
                 ->pluck('total', 'dia');
-
-            // agrupamos ventas por dia del mes
-            $ventasPorDia = Ventas::where('establecimiento_id', $establecimiento_id)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->where(function ($q) {
-                    $q->where('status', '!=', 'cancelada')
-                    ->orWhereNull('status');
-                })
-                ->selectRaw('DAY(created_at) as dia, SUM(total) as total')
-                ->groupBy('dia')
-                ->pluck('total', 'dia'); // [dia => total]
 
             // agrupamos gastos por dia del mes
             $gastosPorDia = Gastos::where('establecimiento_id', $establecimiento_id)

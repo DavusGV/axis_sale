@@ -51,6 +51,7 @@ class VentasController extends Controller
                 $query->where(function ($q) use ($search){
                     $q->where('nombre', 'like', "%{$search}%")
                     ->orWhere('codigo', 'like', "%{$search}%")
+                    ->orWhere('unidad_medida', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%");
                 });
             }
@@ -150,6 +151,8 @@ class VentasController extends Controller
             $venta->establecimiento_id  = $establecimiento_id;
             $venta->historial_caja_id   = $historialCaja->id;
             $venta->usuario_id          = $request->usuario_id;
+            // cliente opcional: puede venir en venta directa o en credito
+            $venta->cliente_id          = $request->cliente_id ?? $request->credito['cliente_id'] ?? null;
             $venta->folio               = $this->generarFolio($establecimiento_id);
             $venta->modo_iva            = $modoIva;
             $venta->iva_total           = round($ivaTotalVenta, 2);
@@ -159,6 +162,7 @@ class VentasController extends Controller
             $venta->metodo_pago         = $request->metodo_pago;
             $venta->metodo_pago_id      = $request->metodo_pago_id ?? null;
             $venta->subtotal            = $request->total; // total sin descuentos ni iva
+            $venta->status              = $request->filled('credito') ? 'pendiente' : 'vendido';// si viene credito la venta arranca como pendiente hasta que se liquide
             $venta->created_at          = Carbon::now();
 
             $venta->save();
@@ -386,7 +390,8 @@ class VentasController extends Controller
         try {
             $establecimiento_id = app('establishment_id');
 
-            $query = Ventas::with(['detalles.producto', 'planPago.cliente', 'establecimiento'])
+            // cargamos el cliente directo de la venta y tambien por plan de pago si es credito
+            $query = Ventas::with(['detalles.producto', 'planPago.cliente', 'cliente', 'establecimiento'])
                 ->where('establecimiento_id', $establecimiento_id);
 
             // filtro por rango de fechas
@@ -424,15 +429,20 @@ class VentasController extends Controller
                     'status'        => $venta->status ?? 'vendida',
                     'fecha'         => $venta->created_at->format('d/m/Y H:i'),
                     'metodo_pago'   => $venta->metodo_pago,
+                    'metodo_pago_id'=> $venta->metodo_pago_id,
                     'subtotal'      => $venta->subtotal,
                     'iva_total'     => $venta->iva_total,
                     'total'         => $venta->total,
                     'pago'          => $venta->pago,
                     'cambio'        => $venta->cambio,
                     'es_credito'    => $venta->planPago !== null,
-                    'cliente'       => $venta->planPago?->cliente
-                        ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
-                        : null,
+                    // primero revisamos si hay cliente directo en la venta,
+                    // si no, tomamos el del plan de pago (ventas a credito anteriores)
+                    'cliente' => $venta->cliente
+                        ? $venta->cliente->nombre . ' ' . $venta->cliente->apellido_p
+                        : ($venta->planPago?->cliente
+                            ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
+                            : null),
                     'num_productos' => $venta->detalles->sum('cantidad'),
                     'detalles'      => $venta->detalles->map(function ($d) {
                         return [
@@ -775,6 +785,7 @@ class VentasController extends Controller
             ->with([
                 'detalles.producto',
                 'planPago.cliente',
+                'cliente',
             ]);
 
         // Mismos filtros que el metodo historial()

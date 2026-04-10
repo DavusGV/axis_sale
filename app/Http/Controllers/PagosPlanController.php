@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 use Exception;
 use App\Models\PlanPago;
 use App\Models\PagoPlan;
 use App\Models\Cajas;
+use App\Models\Ventas;
 use App\Models\HistorialCajas;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ConfirmacionPagoPlan;
+use App\Services\TicketService;
 
 class PagosPlanController extends Controller
 {
@@ -148,14 +153,34 @@ class PagosPlanController extends Controller
             // si el saldo llego a 0 marcamos como liquidado
             if ($saldoDespues <= 0) {
                 $plan->estado = 'liquidado';
+
+                // al liquidarse el credito la venta pasa a vendido
+                Ventas::where('id', $plan->venta_id)
+                    ->update(['status' => 'vendido']);
+
+            } elseif (in_array($plan->estado, ['atrasado', 'vencido'])) {
+                // si estaba atrasado o vencido y realizo un pago, regresa a activo
+                $plan->estado = 'activo';
             }
 
             $plan->save();
 
             // recargamos el plan con relaciones para devolver datos completos
-            $plan->load(['cliente', 'venta', 'pagos']);
+            $plan->load(['cliente', 'venta.establecimiento', 'pagos']);
 
             DB::commit();
+
+            if (!empty($plan->cliente->email)) {
+                try {
+                    Mail::to($plan->cliente->email)
+                        ->send(new ConfirmacionPagoPlan($plan, $pago));
+
+                } catch (Exception $e) {
+                    Log::error(
+                        "Error al enviar confirmacion de pago Plan #{$plan->id}: " . $e->getMessage()
+                    );
+                }
+            }
 
             return $this->Success([
                 'message'            => 'Pago registrado exitosamente.',
@@ -172,6 +197,40 @@ class PagosPlanController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             return $this->InternalError(['error' => 'Error al registrar pago.', 'details' => $e->getMessage()]);
+        }
+    }
+
+    public function ticketAbono($planId, $pagoId)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $plan = PlanPago::with(['cliente', 'venta.establecimiento'])
+                ->where('id', $planId)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->first();
+
+            if (!$plan) {
+                return $this->BadRequest('Plan de pago no encontrado.');
+            }
+
+            $pago = PagoPlan::where('id', $pagoId)
+                ->where('plan_pago_id', $planId)
+                ->first();
+
+            if (!$pago) {
+                return $this->BadRequest('Pago no encontrado.');
+            }
+
+            $ticketService = app(\App\Services\TicketService::class);
+            $pdf = $ticketService->generarPdfAbono($plan, $pago);
+
+            $nombreArchivo = 'abono-cuota' . $pago->numero_cuota . '-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf';
+
+            return $pdf->download($nombreArchivo);
+
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al generar ticket de abono.', 'details' => $e->getMessage()]);
         }
     }
 }

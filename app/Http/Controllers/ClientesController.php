@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Exception;
 use App\Models\Cliente;
+use App\Models\PlanPago;
+use App\Models\Ventas;
+use App\Models\Cotizacion;
 use Carbon\Carbon;
 
 class ClientesController extends Controller
@@ -42,8 +45,19 @@ class ClientesController extends Controller
             $perPage = $request->get('per_page', 15);
             $paginator = $query->paginate($perPage);
 
+            // agregamos conteos de actividad por cliente
+            $items = collect($paginator->items())->map(function ($cliente) {
+                return array_merge($cliente->toArray(), [
+                    'total_ventas'            => $cliente->ventas()->where('status', 'vendido')->count(),
+                    'cotizaciones_pendientes' => $cliente->cotizaciones()->where('status', 'pendiente')->count(),
+                    'creditos_activos'        => PlanPago::where('cliente_id', $cliente->id)
+                                                    ->whereIn('estado', ['activo', 'atrasado', 'vencido'])
+                                                    ->count(),
+                ]);
+            });
+
             return response()->json([
-                'data'         => $paginator->items(),
+                'data'         => $items,
                 'total'        => $paginator->total(),
                 'per_page'     => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
@@ -100,6 +114,51 @@ class ClientesController extends Controller
                 'foto'       => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
                 'observaciones' => 'nullable|string',
             ]);
+
+            // verificamos duplicado por telefono1
+            if ($request->filled('telefono1')) {
+                $dupTelefono1 = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('telefono1', $request->telefono1)
+                    ->where('activo', true)
+                    ->first();
+
+                if ($dupTelefono1) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese teléfono principal: ' .
+                        $dupTelefono1->nombre . ' ' . $dupTelefono1->apellido_p
+                    );
+                }
+            }
+
+            // verificamos duplicado por telefono2
+            if ($request->filled('telefono2')) {
+                $dupTelefono2 = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('telefono2', $request->telefono2)
+                    ->where('activo', true)
+                    ->first();
+
+                if ($dupTelefono2) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese teléfono secundario: ' .
+                        $dupTelefono2->nombre . ' ' . $dupTelefono2->apellido_p
+                    );
+                }
+            }
+
+            // verificamos duplicado por email
+            if ($request->filled('email')) {
+                $dupEmail = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('email', $request->email)
+                    ->where('activo', true)
+                    ->first();
+
+                if ($dupEmail) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese correo electrónico: ' .
+                        $dupEmail->nombre . ' ' . $dupEmail->apellido_p
+                    );
+                }
+            }
 
             $cliente = new Cliente();
             $cliente->establecimiento_id = $establecimiento_id;
@@ -173,6 +232,54 @@ class ClientesController extends Controller
                 return $this->BadRequest('Cliente no encontrado.');
             }
 
+            // verificamos duplicado por telefono1 excluyendo al cliente actual
+            if ($request->filled('telefono1')) {
+                $dupTelefono1 = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('telefono1', $request->telefono1)
+                    ->where('activo', true)
+                    ->where('id', '!=', $id)
+                    ->first();
+
+                if ($dupTelefono1) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese teléfono principal: ' .
+                        $dupTelefono1->nombre . ' ' . $dupTelefono1->apellido_p
+                    );
+                }
+            }
+
+            // verificamos duplicado por telefono2 excluyendo al cliente actual
+            if ($request->filled('telefono2')) {
+                $dupTelefono2 = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('telefono2', $request->telefono2)
+                    ->where('activo', true)
+                    ->where('id', '!=', $id)
+                    ->first();
+
+                if ($dupTelefono2) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese teléfono secundario: ' .
+                        $dupTelefono2->nombre . ' ' . $dupTelefono2->apellido_p
+                    );
+                }
+            }
+
+            // verificamos duplicado por email excluyendo al cliente actual
+            if ($request->filled('email')) {
+                $dupEmail = Cliente::where('establecimiento_id', $establecimiento_id)
+                    ->where('email', $request->email)
+                    ->where('activo', true)
+                    ->where('id', '!=', $id)
+                    ->first();
+
+                if ($dupEmail) {
+                    return $this->BadRequest(
+                        'Ya existe un cliente con ese correo electrónico: ' .
+                        $dupEmail->nombre . ' ' . $dupEmail->apellido_p
+                    );
+                }
+            }
+
             $request->validate([
                 'nombre'     => 'sometimes|required|string|max:100',
                 'apellido_p' => 'sometimes|required|string|max:100',
@@ -237,6 +344,39 @@ class ClientesController extends Controller
 
             if (!$cliente) {
                 return $this->BadRequest('Cliente no encontrado.');
+            }
+
+            // verificamos credito activo antes de eliminar
+            $creditoActivo = PlanPago::where('cliente_id', $id)
+                ->whereIn('estado', ['activo', 'atrasado', 'vencido'])
+                ->first();
+
+            if ($creditoActivo) {
+                return $this->BadRequest(
+                    'No se puede eliminar el cliente porque tiene un crédito activo pendiente de liquidar.'
+                );
+            }
+
+            // verificamos si tiene ventas registradas
+            $tieneVentas = Ventas::where('cliente_id', $id)
+                ->whereIn('status', ['no_pagado', 'pendiente'])
+                ->exists();
+
+            if ($tieneVentas) {
+                return $this->BadRequest(
+                    'No se puede eliminar el cliente porque tiene ventas registradas.'
+                );
+            }
+
+            // verificamos cotizaciones pendientes
+            $cotizacionPendiente = Cotizacion::where('cliente_id', $id)
+                ->where('status', 'pendiente')
+                ->exists();
+
+            if ($cotizacionPendiente) {
+                return $this->BadRequest(
+                    'No se puede eliminar el cliente porque tiene cotizaciones pendientes.'
+                );
             }
 
             // soft delete: solo marcamos como inactivo

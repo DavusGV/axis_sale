@@ -204,15 +204,15 @@
 
     {{-- Numero de cuenta --}}
     @if(!empty($ticket['num_cuenta']))
-        <hr class="sep" />
         <table class="fila"><tr>
             <td class="l">NUM. CUENTA:</td>
             <td class="v">{{ $ticket['num_cuenta'] }}</td>
         </tr></table>
     @endif
 
-    {{-- ==================== CLIENTE EN COTIZACIONES ==================== --}}
-    @if($ticket['tipo'] === 'cotizacion' && !empty($ticket['cliente']))
+    {{-- ==================== CLIENTE ==================== --}}
+    @if(!empty($ticket['cliente']))
+        <hr class="sep" />
         @php
             $nombreCliente = trim(($ticket['cliente']['nombre'] ?? '') . ' ' . ($ticket['cliente']['apellido'] ?? ''));
         @endphp

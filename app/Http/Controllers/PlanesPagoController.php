@@ -10,6 +10,7 @@ use App\Models\PagoPlan;
 use App\Models\Cajas;
 use App\Models\HistorialCajas;
 use Carbon\Carbon;
+use App\Services\TicketService;
 
 class PlanesPagoController extends Controller
 {
@@ -35,13 +36,20 @@ class PlanesPagoController extends Controller
                 $query->where('cliente_id', $request->cliente_id);
             }
 
-            // busqueda por nombre o telefono del cliente
+            // busqueda por nombre o telefono del cliente, o por folio de venta
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->whereHas('cliente', function ($q) use ($search) {
-                    $q->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('apellido_p', 'like', "%{$search}%")
-                    ->orWhere('telefono1', 'like', "%{$search}%");
+                $query->where(function ($q) use ($search) {
+                    // busca en datos del cliente
+                    $q->whereHas('cliente', function ($qc) use ($search) {
+                        $qc->where('nombre', 'like', "%{$search}%")
+                        ->orWhere('apellido_p', 'like', "%{$search}%")
+                        ->orWhere('telefono1', 'like', "%{$search}%");
+                    })
+                    // o busca por folio de la venta asociada
+                    ->orWhereHas('venta', function ($qv) use ($search) {
+                        $qv->where('folio', 'like', "%{$search}%");
+                    });
                 });
             }
 
@@ -225,6 +233,32 @@ class PlanesPagoController extends Controller
 
         } catch (Exception $e) {
             return $this->InternalError(['error' => 'Error al obtener plan de pago.', 'details' => $e->getMessage()]);
+        }
+    }
+
+    public function ticketCredito($id)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $plan = PlanPago::with(['cliente', 'venta.establecimiento'])
+                ->where('id', $id)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->first();
+
+            if (!$plan) {
+                return $this->BadRequest('Plan de pago no encontrado.');
+            }
+
+            $ticketService = app(\App\Services\TicketService::class);
+            $pdf = $ticketService->generarPdfCredito($plan);
+
+            $nombreArchivo = 'credito-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf';
+
+            return $pdf->download($nombreArchivo);
+
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al generar ticket de credito.', 'details' => $e->getMessage()]);
         }
     }
 }

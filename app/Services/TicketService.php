@@ -3,6 +3,8 @@ namespace App\Services;
 
 use App\Models\Ventas;
 use App\Models\Cotizacion;
+use App\Models\PlanPago;
+use App\Models\PagoPlan;
 use App\Models\ConfiguracionEstablecimiento;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -18,6 +20,7 @@ class TicketService
             'detalles.producto',
             'establecimiento',
             'planPago.cliente',
+            'cliente',
             'usuario',
         ])->findOrFail($id);
 
@@ -31,6 +34,16 @@ class TicketService
 
         // plan de pago si es credito
         $ticket['plan_pago'] = null;
+        // cliente directo de la venta (contado con cliente registrado)
+        // si es credito, el cliente ya viene dentro de plan_pago
+        $ticket['cliente'] = null;
+        if (!$venta->planPago && $venta->cliente) {
+            $ticket['cliente'] = [
+                'nombre'   => $venta->cliente->nombre,
+                'apellido' => $venta->cliente->apellido_p,
+                'telefono' => $venta->cliente->telefono1 ?? null,
+            ];
+        }
         if ($venta->planPago) {
             $plan = $venta->planPago;
             $config = $this->obtenerConfiguracion($venta->establecimiento_id);
@@ -82,6 +95,81 @@ class TicketService
         $ticket['venta_folio'] = $cotizacion->venta_folio;
 
         return $ticket;
+    }
+
+    /**
+     * Genera el array de datos para el ticket de credito
+     * Recibe el plan con sus relaciones venta, establecimiento y cliente
+     */
+    public function generarTicketCredito(PlanPago $plan): array
+    {
+        // obtenemos la config usando el establecimiento_id de la venta
+        $config = $this->obtenerConfiguracion($plan->venta->establecimiento_id);
+
+        // logo usando el helper igual que en los otros tickets
+        $logoBase64 = obtenerLogoBase64($plan->venta->establecimiento);
+
+        return [
+            'logo_url'          => $logoBase64,
+            'establecimiento'   => $plan->venta->establecimiento->nombre ?? 'MI NEGOCIO',
+            'formato_fecha'     => $config['formato_fecha'],
+            'folio_venta'       => $plan->venta->folio ?? '#' . $plan->venta_id,
+            'fecha_inicio'      => Carbon::parse($plan->fecha_inicio)->format($config['formato_fecha']),
+            'fecha_proximo_pago'=> Carbon::parse($plan->fecha_proximo_pago)->format($config['formato_fecha']),
+            'cliente'           => [
+                'nombre'    => $plan->cliente->nombre,
+                'apellido'  => $plan->cliente->apellido_p,
+                'telefono'  => $plan->cliente->telefono1 ?? null,
+                'direccion' => $plan->cliente->direccion ?? null,
+            ],
+            'total_venta'       => $plan->total_venta,
+            'interes_aplicado'  => $plan->interes_aplicado,
+            'interes_tipo'      => $plan->interes_tipo,
+            'interes_valor'     => $plan->interes_valor,
+            'total_a_pagar'     => $plan->total_a_pagar,
+            'anticipo'          => $plan->anticipo,
+            'saldo_pendiente'   => $plan->total_financiado,
+            'num_plazos'        => $plan->num_plazos,
+            'tipo_plazo'        => $plan->tipo_plazo,
+            'intervalo_dias'    => $plan->intervalo_dias,
+            'monto_cuota'       => $plan->monto_cuota,
+            'observaciones'     => $plan->observaciones ?? null,
+        ];
+    }
+
+    /**
+     * Genera el array de datos para el ticket de abono
+     * Recibe el plan y el pago registrado
+     */
+    public function generarTicketAbono(PlanPago $plan, PagoPlan $pago): array
+    {
+        $config = $this->obtenerConfiguracion($plan->venta->establecimiento_id);
+
+        $logoBase64 = obtenerLogoBase64($plan->venta->establecimiento);
+
+        return [
+            'logo_url'          => $logoBase64,
+            'establecimiento'   => $plan->venta->establecimiento->nombre ?? 'MI NEGOCIO',
+            'formato_fecha'     => $config['formato_fecha'],
+            'folio_venta'       => $plan->venta->folio ?? '#' . $plan->venta_id,
+            'fecha_pago'        => Carbon::parse($pago->fecha_pago)->format($config['formato_fecha']),
+            'numero_cuota'      => $pago->numero_cuota,
+            'num_plazos'        => $plan->num_plazos,
+            'metodo_pago'       => $pago->metodo_pago,
+            'cliente'           => [
+                'nombre'    => $plan->cliente->nombre,
+                'apellido'  => $plan->cliente->apellido_p,
+                'telefono'  => $plan->cliente->telefono1 ?? null,
+            ],
+            'saldo_anterior'    => $pago->saldo_anterior,
+            'monto_pagado'      => $pago->monto_pagado,
+            'saldo_despues'     => $pago->saldo_despues,
+            'saldo_pendiente'   => $pago->saldo_despues,
+            'estado'            => $plan->estado,
+            'fecha_proximo_pago'=> Carbon::parse($plan->fecha_proximo_pago)->format($config['formato_fecha']),
+            'monto_cuota'       => $plan->monto_cuota,
+            'notas'             => $pago->notas ?? null,
+        ];
     }
 
     /**
@@ -187,19 +275,37 @@ class TicketService
         return $this->crearPdfTicket($ticket);
     }
 
+    /**
+     * Genera el PDF del ticket de credito
+     */
+    public function generarPdfCredito(PlanPago $plan)
+    {
+        $ticket = $this->generarTicketCredito($plan);
+        return $this->crearPdfTicket($ticket, 'pdf.tickets.ticket_credito');
+    }
+
+    /**
+     * Genera el PDF del ticket de abono
+     */
+    public function generarPdfAbono(PlanPago $plan, PagoPlan $pago)
+    {
+        $ticket = $this->generarTicketAbono($plan, $pago);
+        return $this->crearPdfTicket($ticket, 'pdf.tickets.ticket_abono');
+    }
+
 
     /**
      * Crea el PDF del ticket usando la vista blade
      * Renderiza dos veces: primero calcula la altura real del contenido
      * y luego genera el PDF final con esa altura exacta
      */
-    private function crearPdfTicket(array $ticket)
+    private function crearPdfTicket(array $ticket, string $vista = 'pdf.tickets.ticket')
     {
         $anchoPt = 226.77; // 80mm en puntos
 
         // primera pasada: renderizamos para calcular la altura real del contenido
-        $pdfPrevio = Pdf::loadView('pdf.ticket', ['ticket' => $ticket]);
-        $pdfPrevio->setPaper([0, 0, $anchoPt, 1000]); // alto grande temporal
+        $pdfPrevio = Pdf::loadView($vista, ['ticket' => $ticket]);
+        $pdfPrevio->setPaper([0, 0, $anchoPt, 1000]);
 
         $GLOBALS['bodyHeight'] = 0;
 
@@ -217,11 +323,11 @@ class TicketService
         ]);
 
         $pdfPrevio->render();
-        $alturaReal = $GLOBALS['bodyHeight'] + 30; // margen extra para que no se corte
+        $alturaReal = $GLOBALS['bodyHeight'] + 30;
         unset($pdfPrevio);
 
         // segunda pasada: generamos el PDF final con la altura calculada
-        $pdfFinal = Pdf::loadView('pdf.ticket', ['ticket' => $ticket]);
+        $pdfFinal = Pdf::loadView($vista, ['ticket' => $ticket]);
         $pdfFinal->setPaper([0, 0, $anchoPt, $alturaReal]);
 
         return $pdfFinal;
