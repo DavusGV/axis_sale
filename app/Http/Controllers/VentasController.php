@@ -47,19 +47,28 @@ class VentasController extends Controller
             // filtro de busqueda
             if ($request ->filled('search')) {
                 $search = $request->search;
+                // dividimos por espacios para buscar cada palabra
+                $terminos = array_filter(explode(' ', $search));
 
-                $query->where(function ($q) use ($search){
-                    $q->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('codigo', 'like', "%{$search}%")
-                    ->orWhere('unidad_medida', 'like', "%{$search}%")
-                    ->orWhere('descripcion', 'like', "%{$search}%");
+                $query->where(function ($q) use ($terminos) {
+                    foreach ($terminos as $termino) {
+                        $q->where(function ($sub) use ($termino) {
+                            $sub->where('nombre', 'like', "%{$termino}%")
+                                ->orWhere('codigo', 'like', "%{$termino}%")
+                                ->orWhere('descripcion', 'like', "%{$termino}%")
+                                ->orWhereHas('unidadMedida', function ($rel) use ($termino) {
+                                    $rel->where('unidad', 'like', "%{$termino}%")
+                                        ->orWhere('abreviatura', 'like', "%{$termino}%");
+                                });
+                        });
+                    }
                 });
             }
 
             if ($request->filled('categoria_id')) {
                 $query->where('categoria_id', $request->categoria_id);
             }
-            $query->orderBy('created_at', 'desc');
+            $query->with('unidadMedida')->orderBy('created_at', 'desc');
 
             // paginacion
             $perPage = $request->get('per_page', 10);

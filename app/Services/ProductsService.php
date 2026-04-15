@@ -16,17 +16,32 @@ class ProductsService
         // enviado por el frontend y validado previamente por middleware.
         $establecimiento_id = app('establishment_id');
 
-        $query = Products::with('categoria')->
-        where('establecimiento_id', $establecimiento_id);
+        $query = Products::with(['categoria', 'unidadMedida'])
+                ->where('establecimiento_id', $establecimiento_id);
+
+        // filtro por unidad de medida
+        if ($request->filled('unidad_medida_id')) {
+            $query->where('unidad_medida_id', $request->unidad_medida_id);
+        }
 
         // creamos los filtros de busqueda
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('nombre', 'like', "%{$search}%")
-                ->orWhere('codigo', 'like', "%{$search}%")
-                ->orWhere('unidad_medida', 'like', "%{$search}%")
-                ->orWhere('descripcion', 'like', "%{$search}%");
+            // dividimos por espacios para buscar cada palabra
+            $terminos = array_filter(explode(' ', $search));
+
+            $query->where(function ($q) use ($terminos) {
+                foreach ($terminos as $termino) {
+                    $q->where(function ($sub) use ($termino) {
+                        $sub->where('nombre', 'like', "%{$termino}%")
+                            ->orWhere('codigo', 'like', "%{$termino}%")
+                            ->orWhere('descripcion', 'like', "%{$termino}%")
+                            ->orWhereHas('unidadMedida', function ($rel) use ($termino) {
+                                $rel->where('unidad', 'like', "%{$termino}%")
+                                    ->orWhere('abreviatura', 'like', "%{$termino}%");
+                            });
+                    });
+                }
             });
         }
         //Filtro específico

@@ -12,6 +12,7 @@ class Products extends Model
     protected $fillable = [
         'establecimiento_id',
         'categoria_id',
+        'unidad_medida_id',
         'nombre',
         'codigo',
         'descripcion',
@@ -22,7 +23,6 @@ class Products extends Model
         'imagen',
         'iva',
         'es_servicio',
-        'unidad_medida',
     ];
 
     // para construir la ruta de la imagen
@@ -44,6 +44,11 @@ class Products extends Model
     public function categoria()
     {
         return $this->belongsTo(Category::class, 'categoria_id');
+    }
+
+    public function unidadMedida()
+    {
+        return $this->belongsTo(UnidadMedida::class, 'unidad_medida_id');
     }
 
 }

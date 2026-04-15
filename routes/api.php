@@ -25,6 +25,7 @@ use App\Http\Controllers\Finanzas\BalanceController;
 use App\Http\Controllers\ConfiguracionEstablecimientoController;
 use App\Http\Controllers\CotizacionesController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\UnidadesMedidasController;
 
 /*
 |--------------------------------------------------------------------------
@@ -130,6 +131,13 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/', [ProductsController::class, 'store']);
         Route::put('/{id}', [ProductsController::class, 'update']);
         Route::delete('/{id}', [ProductsController::class, 'destroy']);
+    });
+
+    Route::prefix('unidades-medidas')->group(function () {
+        Route::get('/',          [UnidadesMedidasController::class, 'index']);
+        Route::post('/',         [UnidadesMedidasController::class, 'store']);
+        Route::put('/{id}',      [UnidadesMedidasController::class, 'update']);
+        Route::delete('/{id}',   [UnidadesMedidasController::class, 'destroy']);
     });
 
     Route::prefix('establecimientos')->group(function () {
