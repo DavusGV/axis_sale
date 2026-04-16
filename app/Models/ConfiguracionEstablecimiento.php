@@ -16,6 +16,7 @@ class ConfiguracionEstablecimiento extends Model
         'formato_hora',
         'formato_fecha',
         'num_cuenta',
+        'descuento_con_decimales',
     ];
 
     protected $casts = [
