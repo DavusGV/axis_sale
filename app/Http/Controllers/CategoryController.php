@@ -26,12 +26,10 @@ class CategoryController extends Controller
         }
     }
 
-    // Obtiene el establecimiento_id del usuario autenticado
+    // Obtiene el establecimiento_id del header validado por middleware
     private function getEstablecimientoId()
     {
-        $user = auth()->user();
-        $establecimiento = UserEstablecimiento::where('user_id', $user->id)->first();
-        return $establecimiento->establecimiento_id ?? 0;
+        return app('establishment_id');
     }
 
     // Listado paginado para la vista de categorias
