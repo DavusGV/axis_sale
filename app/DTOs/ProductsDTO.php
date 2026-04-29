@@ -3,6 +3,7 @@ namespace App\DTOs;
 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class ProductsDTO
 {
@@ -10,6 +11,7 @@ class ProductsDTO
     {
         $rules = [
             'store' => [
+                'autogenerar' => 'nullable|boolean',
                 'nombre' => [
                     'required',
                     'string',
@@ -25,7 +27,26 @@ class ProductsDTO
                         }
                     }
                 ],
-                'codigo' => 'nullable|string|max:100|unique:productos,codigo',
+                'codigo' => [
+                    // si autogenerar es true, el codigo se ignora; si es false, se valida unique por establecimiento
+                    Rule::requiredIf(fn() => empty($data['autogenerar'])),
+                    'nullable',
+                    'string',
+                    'max:100',
+                    function($attribute, $value, $fail) use ($data) {
+                        // si esta en autogenerar, no validamos unique porque el backend lo generara
+                        if (!empty($data['autogenerar'])) {
+                            return;
+                        }
+                        // unicidad por establecimiento
+                        $exists = \App\Models\Products::where('codigo', $value)
+                            ->where('establecimiento_id', $data['establecimiento_id'] ?? 1)
+                            ->exists();
+                        if ($exists) {
+                            $fail('Ya existe un producto con ese codigo en este establecimiento.');
+                        }
+                    }
+                ],
                 'descripcion' => 'nullable|string',
                 'categoria_id' => 'required|exists:categorias,id',
                 'precio_compra' => 'required|numeric|min:0',
@@ -34,9 +55,25 @@ class ProductsDTO
                 'unidad_medida_id' => 'nullable|exists:unidades_medidas,id',
                 'es_servicio' => 'nullable|boolean',
                 'stock' => 'required|integer|min:0',
-                'clave' => 'nullable|string|max:100|unique:productos,clave',
+                'clave' => [
+                    // misma logica que codigo
+                    Rule::requiredIf(fn() => empty($data['autogenerar'])),
+                    'nullable',
+                    'string',
+                    'max:100',
+                    function($attribute, $value, $fail) use ($data) {
+                        if (!empty($data['autogenerar'])) {
+                            return;
+                        }
+                        $exists = \App\Models\Products::where('clave', $value)
+                            ->where('establecimiento_id', $data['establecimiento_id'] ?? 1)
+                            ->exists();
+                        if ($exists) {
+                            $fail('Ya existe un producto con esa clave en este establecimiento.');
+                        }
+                    }
+                ],
                 'imagen' => 'nullable'
-
             ],
             'update' => [
                 'nombre' => 'sometimes|string|max:255',

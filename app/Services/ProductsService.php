@@ -4,6 +4,7 @@ namespace App\Services;
 use Illuminate\Http\Request;
 use App\Models\Products;
 use App\Models\UserEstablecimiento;
+use App\Models\Category;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Exception;
@@ -65,6 +66,21 @@ class ProductsService
         // enviado por el frontend y validado previamente por middleware.
         $establecimiento_id = app('establishment_id');
         $data['establecimiento_id'] = $establecimiento_id;
+
+        // si viene la bandera autogenerar en true, generamos codigo y clave
+        // ignorando lo que mande el frontend en esos campos
+        if (!empty($data['autogenerar'])) {
+            $codigoGenerado = $this->generarCodigoProducto(
+                $data['categoria_id'],
+                $data['nombre'],
+                $establecimiento_id
+            );
+            $data['codigo'] = $codigoGenerado;
+            $data['clave']  = $codigoGenerado;
+        }
+
+        // la bandera no es columna de la tabla productos, la quitamos
+        unset($data['autogenerar']);
 
         if (isset($data['imagen']) && $data['imagen'] instanceof \Illuminate\Http\UploadedFile)
             {
@@ -145,5 +161,83 @@ class ProductsService
         });
 
         return $product;
+    }
+
+    /**
+     * Genera un codigo unico para producto con formato XX-YYY-ZZZZZ
+     * XX    -> 2 primeras letras de la categoria
+     * YYY   -> 3 primeras letras del nombre del producto
+     * ZZZZZ -> 5 caracteres aleatorios alfanumericos
+     * La unicidad se valida por establecimiento.
+     */
+    private function generarCodigoProducto(int $categoriaId, string $nombreProducto, int $establecimientoId): string
+    {
+        // obtenemos la categoria para extraer su nombre, validando que pertenezca al establecimiento
+        $categoria = Category::where('id', $categoriaId)
+            ->where('establecimiento_id', $establecimientoId)
+            ->firstOrFail();
+
+        // limpiamos acentos y caracteres especiales para los prefijos
+        $prefijoCategoria = $this->limpiarTexto($categoria->nombre);
+        $prefijoNombre    = $this->limpiarTexto($nombreProducto);
+
+        // tomamos las letras disponibles (hasta 2 y hasta 3)
+        $parteCategoria = strtoupper(substr($prefijoCategoria, 0, 2));
+        $parteNombre    = strtoupper(substr($prefijoNombre, 0, 3));
+
+        $prefijo = $parteCategoria . '-' . $parteNombre . '-';
+
+        // consultamos los codigos ya existentes con ese prefijo para ese establecimiento
+        // asi evitamos colisiones consultando una sola vez la base de datos
+        $codigosExistentes = Products::where('establecimiento_id', $establecimientoId)
+            ->where('codigo', 'like', $prefijo . '%')
+            ->pluck('codigo')
+            ->toArray();
+
+        $intentos = 0;
+        $maxIntentos = 10;
+
+        do {
+            $randomPart = $this->generarRandomAlfanumerico(5);
+            $codigoCandidato = $prefijo . $randomPart;
+            $intentos++;
+
+            if (!in_array($codigoCandidato, $codigosExistentes)) {
+                return $codigoCandidato;
+            }
+        } while ($intentos < $maxIntentos);
+
+        // si tras 10 intentos no encontramos uno libre, abortamos con mensaje claro
+        throw new Exception('No fue posible generar un codigo unico en este momento. Intenta nuevamente o ingresa el codigo manualmente.');
+    }
+
+    /**
+     * Limpia un texto removiendo acentos y caracteres no alfabeticos
+     * para usarlo en los prefijos del codigo generado
+     */
+    private function limpiarTexto(string $texto): string
+    {
+        // removemos acentos
+        $texto = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto);
+        // dejamos solo letras
+        $texto = preg_replace('/[^A-Za-z]/', '', $texto);
+        return $texto;
+    }
+
+    /**
+     * Genera una cadena aleatoria alfanumerica en mayusculas
+     * usando A-Z y 0-9 (caracteres seguros para Code 128)
+     */
+    private function generarRandomAlfanumerico(int $longitud): string
+    {
+        $caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $resultado = '';
+        $max = strlen($caracteres) - 1;
+
+        for ($i = 0; $i < $longitud; $i++) {
+            $resultado .= $caracteres[random_int(0, $max)];
+        }
+
+        return $resultado;
     }
 }
