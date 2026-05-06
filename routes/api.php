@@ -25,6 +25,7 @@ use App\Http\Controllers\Finanzas\BalanceController;
 use App\Http\Controllers\ConfiguracionEstablecimientoController;
 use App\Http\Controllers\CotizacionesController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\UnidadesMedidasController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,7 +42,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 
 });
-    
+
 // Perfil del usuario autenticado
 Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
     Route::get('/',              [PerfilController::class, 'show']);
@@ -118,6 +119,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/', [ConfiguracionEstablecimientoController::class, 'show']);
         Route::post('/', [ConfiguracionEstablecimientoController::class, 'update']);
         Route::post('/logo', [ConfiguracionEstablecimientoController::class, 'updateLogo']);
+        Route::delete('/logo', [ConfiguracionEstablecimientoController::class, 'destroyLogo']);
     });
 
     Route::prefix('reportes')->group(function () {
@@ -130,6 +132,13 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/', [ProductsController::class, 'store']);
         Route::put('/{id}', [ProductsController::class, 'update']);
         Route::delete('/{id}', [ProductsController::class, 'destroy']);
+    });
+
+    Route::prefix('unidades-medidas')->group(function () {
+        Route::get('/',          [UnidadesMedidasController::class, 'index']);
+        Route::post('/',         [UnidadesMedidasController::class, 'store']);
+        Route::put('/{id}',      [UnidadesMedidasController::class, 'update']);
+        Route::delete('/{id}',   [UnidadesMedidasController::class, 'destroy']);
     });
 
     Route::prefix('establecimientos')->group(function () {
@@ -173,7 +182,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/tgasto', [GastosController::class, 'indexType']);
         Route::delete('/tgasto/{id}', [GastosController::class, 'destroyType']);
         Route::put('/tgasto', [GastosController::class, 'updateType']);
-        
+
         Route::get('/gasto/resumen', [GastosController::class, 'resumen']);
         Route::post('/gasto', [GastosController::class, 'store']);
         Route::get('/gasto', [GastosController::class, 'index']);

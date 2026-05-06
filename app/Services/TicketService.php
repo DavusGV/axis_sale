@@ -94,6 +94,12 @@ class TicketService
         ];
         $ticket['venta_folio'] = $cotizacion->venta_folio;
 
+        // datos extra del establecimiento para el documento formal
+        $establecimiento = $cotizacion->establecimiento;
+        $ticket['establecimiento_email']     = $establecimiento->email ?? null;
+        $ticket['establecimiento_telefono']  = $establecimiento->telefono ?? null;
+        $ticket['establecimiento_direccion'] = $establecimiento->direccion ?? null;
+
         return $ticket;
     }
 
@@ -272,9 +278,8 @@ class TicketService
     public function generarPdfCotizacion(int $id)
     {
         $ticket = $this->generarTicketCotizacion($id);
-        return $this->crearPdfTicket($ticket);
+        return $this->crearPdfCarta($ticket, 'pdf.tickets.ticket_cotizacion');
     }
-
     /**
      * Genera el PDF del ticket de credito
      */
@@ -331,6 +336,18 @@ class TicketService
         $pdfFinal->setPaper([0, 0, $anchoPt, $alturaReal]);
 
         return $pdfFinal;
+    }
+
+    /**
+     * Crea un PDF en tamano carta para documentos formales
+     * No requiere calculo de altura dinamica como los tickets de 80mm
+     */
+    private function crearPdfCarta(array $ticket, string $vista)
+    {
+        $pdf = Pdf::loadView($vista, ['ticket' => $ticket]);
+        $pdf->setPaper('letter', 'portrait');
+
+        return $pdf;
     }
 
 }
