@@ -132,6 +132,9 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/', [ProductsController::class, 'store']);
         Route::put('/{id}', [ProductsController::class, 'update']);
         Route::delete('/{id}', [ProductsController::class, 'destroy']);
+        Route::get('/template/download', [ProductsController::class, 'downloadTemplate']);
+        Route::post('/import/preview',   [ProductsController::class, 'previewImport']);
+        Route::post('/import',           [ProductsController::class, 'executeImport']);
     });
 
     Route::prefix('unidades-medidas')->group(function () {

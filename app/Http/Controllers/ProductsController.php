@@ -3,6 +3,10 @@ namespace App\Http\Controllers;
 
 use App\DTOs\ProductsDTO;
 use App\Services\ProductsService;
+use App\Exports\ProductsTemplateExport;
+use App\Exports\ProductsErrorsExport;
+use App\Services\ProductsImportService;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -11,10 +15,14 @@ use Exception;
 class ProductsController extends Controller
 {
     protected $productsService;
+    protected $importService;
 
-    public function __construct(ProductsService $productsService)
-    {
+    public function __construct(
+        ProductsService $productsService,
+        ProductsImportService $importService
+    ) {
         $this->productsService = $productsService;
+        $this->importService   = $importService;
     }
 
     public function index(Request $request)
@@ -127,6 +135,108 @@ class ProductsController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             return $this->InternalError(['error' => 'Error deleting product', 'message' => $e->getMessage()]);
+        }
+    }
+
+    // METODO 1: Descargar template del establecimiento activo
+    public function downloadTemplate()
+    {
+        try {
+            $establecimientoId = app('establishment_id');
+    
+            $nombreArchivo = 'plantilla_productos_' . date('Ymd_His') . '.xlsx';
+    
+            return Excel::download(
+                new ProductsTemplateExport($establecimientoId),
+                $nombreArchivo
+            );
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar la plantilla',
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // METODO 2: Preview de la importacion (lee, valida, guarda temporal)
+    public function previewImport(Request $request)
+    {
+        try {
+            $request->validate([
+                'archivo' => 'required|file|mimes:xlsx,xls|max:10240', // 10MB max
+            ]);
+    
+            $establecimientoId = app('establishment_id');
+            $resultado = $this->importService->preview(
+                $request->file('archivo'),
+                $establecimientoId
+            );
+    
+            return $this->Success($resultado);
+        } catch (ValidationException $e) {
+            return $this->BadRequest([
+                'error'    => 'Validation failed',
+                'messages' => $e->errors(),
+            ]);
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al procesar el archivo',
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // METODO 3: Ejecuta la importacion definitiva
+    // Si hay filas fallidas devuelve binario con archivo de errores
+    // Si todo salio bien devuelve JSON con resumen
+    public function executeImport(Request $request)
+    {
+        try {
+            $request->validate([
+                'token' => 'required|string',
+            ]);
+    
+            $establecimientoId = app('establishment_id');
+    
+            $resultado = $this->importService->ejecutar(
+                $request->input('token'),
+                $establecimientoId
+            );
+    
+            // Si hubo filas fallidas devolvemos el archivo descargable
+            // En este caso el frontend NO recibe JSON, recibe el binario directo
+            // pero le pasamos los datos en headers para que pueda mostrar resumen
+            if ($resultado['total_fallidas'] > 0) {
+                $nombreArchivo = 'productos_fallidos_' . date('Ymd_His') . '.xlsx';
+    
+                return Excel::download(
+                    new ProductsErrorsExport($resultado['fallidas']),
+                    $nombreArchivo,
+                    \Maatwebsite\Excel\Excel::XLSX,
+                    [
+                        'X-Insertados'     => $resultado['insertados'],
+                        'X-Total-Fallidas' => $resultado['total_fallidas'],
+                        'Access-Control-Expose-Headers' => 'X-Insertados, X-Total-Fallidas',
+                    ]
+                );
+            }
+    
+            // Si todo se importo sin errores devolvemos JSON normal
+            return $this->Success([
+                'insertados'     => $resultado['insertados'],
+                'total_fallidas' => 0,
+                'mensaje'        => 'Todos los productos se importaron correctamente.',
+            ]);
+        } catch (ValidationException $e) {
+            return $this->BadRequest([
+                'error'    => 'Validation failed',
+                'messages' => $e->errors(),
+            ]);
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al ejecutar la importacion',
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 }
