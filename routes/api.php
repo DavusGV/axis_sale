@@ -26,6 +26,7 @@ use App\Http\Controllers\ConfiguracionEstablecimientoController;
 use App\Http\Controllers\CotizacionesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UnidadesMedidasController;
+use App\Http\Controllers\StockController;
 
 /*
 |--------------------------------------------------------------------------
@@ -142,6 +143,12 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/',         [UnidadesMedidasController::class, 'store']);
         Route::put('/{id}',      [UnidadesMedidasController::class, 'update']);
         Route::delete('/{id}',   [UnidadesMedidasController::class, 'destroy']);
+    });
+
+    Route::prefix('stock')->group(function () {
+        Route::get('/productos',    [StockController::class, 'productosParaSelect']);
+        Route::get('/cronologia',   [StockController::class, 'cronologia']);
+        Route::post('/movimientos', [StockController::class, 'registrarMovimiento']);
     });
 
     Route::prefix('establecimientos')->group(function () {

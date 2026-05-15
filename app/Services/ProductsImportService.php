@@ -6,6 +6,7 @@ use App\Imports\ProductsImport;
 use App\Models\Category;
 use App\Models\UnidadMedida;
 use App\Models\Products;
+use App\Models\MovimientoStock;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -330,6 +331,8 @@ class ProductsImportService
     /**
      * Inserta las filas validas en lotes usando insert() de Eloquent.
      * Las filas que necesiten codigo autogenerado lo reciben antes del insert.
+     * Despues de insertar los productos, registra los movimientos de alta
+     * para los productos con stock > 0 que no sean servicio.
      * Devuelve la cantidad total insertada.
      */
     private function insertarPorLotes(array $filasValidas, array $catalogos, int $establecimientoId): int
@@ -344,6 +347,10 @@ class ProductsImportService
         $categoriaNombrePorId = Category::where('establecimiento_id', $establecimientoId)
             ->pluck('nombre', 'id')
             ->toArray();
+
+        // usuario actual autenticado para registrar quien hizo la importacion
+        // sera el responsable de los movimientos de alta generados
+        $usuarioId = \Illuminate\Support\Facades\Auth::id();
 
         $now = now();
         $registros = [];
@@ -387,12 +394,75 @@ class ProductsImportService
         // Insertamos en lotes de 200 para no saturar memoria con archivos grandes
         $tamanoLote = 200;
         $total = 0;
+
         foreach (array_chunk($registros, $tamanoLote) as $lote) {
             Products::insert($lote);
             $total += count($lote);
+
+            // Una vez insertados los productos del lote, generamos sus movimientos de alta
+            // solo para los que no son servicio y tienen stock > 0
+            $this->registrarMovimientosAltaLote($lote, $establecimientoId, $usuarioId, $now);
         }
 
         return $total;
+    }
+
+    /**
+     * Genera los movimientos de alta para un lote de productos recien insertados.
+     * Recupera los IDs reales consultando por codigo (que es unico en el establecimiento)
+     * y luego inserta los movimientos en una sola operacion masiva.
+     */
+    private function registrarMovimientosAltaLote(array $loteProductos, int $establecimientoId, ?int $usuarioId, $timestamp): void
+    {
+        // si no hay usuario autenticado, no registramos movimientos
+        // esto es solo proteccion: bajo auth:sanctum siempre debe existir
+        if (!$usuarioId) {
+            return;
+        }
+
+        // filtramos solo productos que califican para movimiento de alta:
+        // - no servicio
+        // - stock mayor a 0
+        $codigosConStock = [];
+        foreach ($loteProductos as $producto) {
+            if (!$producto['es_servicio'] && (int) $producto['stock'] > 0) {
+                $codigosConStock[$producto['codigo']] = (int) $producto['stock'];
+            }
+        }
+
+        if (empty($codigosConStock)) {
+            return;
+        }
+
+        // recuperamos los IDs reales de los productos recien creados
+        // el codigo es unico por establecimiento asi que la consulta es confiable
+        $productosCreados = Products::where('establecimiento_id', $establecimientoId)
+            ->whereIn('codigo', array_keys($codigosConStock))
+            ->get(['id', 'codigo', 'stock']);
+
+        if ($productosCreados->isEmpty()) {
+            return;
+        }
+
+        // construimos los registros de movimientos
+        $movimientos = [];
+        foreach ($productosCreados as $producto) {
+            $movimientos[] = [
+                'establecimiento_id' => $establecimientoId,
+                'producto_id'        => $producto->id,
+                'usuario_id'         => $usuarioId,
+                'tipo'               => 'entrada',
+                'cantidad'           => (int) $producto->stock,
+                'stock_anterior'     => 0,
+                'stock_nuevo'        => (int) $producto->stock,
+                'motivo'             => 'Alta inicial del producto (importacion masiva)',
+                'created_at'         => $timestamp,
+                'updated_at'         => $timestamp,
+            ];
+        }
+
+        // insert masivo en una sola operacion
+        MovimientoStock::insert($movimientos);
     }
 
     /**
