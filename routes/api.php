@@ -102,6 +102,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
         Route::get('/historial/export/excel', [VentasController::class, 'exportHistorialExcel']);
         Route::get('/historial/export/pdf',   [VentasController::class, 'exportHistorialPdf']);
+        Route::get('/{id}/ticket-base64', [VentasController::class, 'ticketBase64']);
     });
 
     // rutas de cotizaciones
@@ -109,7 +110,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/',                     [CotizacionesController::class, 'index']);
         Route::post('/',                    [CotizacionesController::class, 'store']);
         Route::put('/{id}/detalles',        [CotizacionesController::class, 'actualizarDetalles']);
-        Route::get('/{id}/ticket-pdf', [CotizacionesController::class, 'descargarTicketPdf']);
+        Route::get('/{id}/ticket-pdf',      [CotizacionesController::class, 'descargarTicketPdf']);
         Route::get('/{id}/ticket',          [CotizacionesController::class, 'ticketCotizacion']);
         Route::get('/{id}/comprobar',       [CotizacionesController::class, 'comprobarStock']);
         Route::post('/{id}/convertir',      [CotizacionesController::class, 'convertirVenta']);
@@ -227,12 +228,14 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/',                   [PlanesPagoController::class, 'store']);
         Route::get('/{id}',                [PlanesPagoController::class, 'show']);
         Route::get('/{id}/ticket-pdf',     [PlanesPagoController::class, 'ticketCredito']);
+        Route::get('/{id}/ticket-credito-base64', [PlanesPagoController::class, 'ticketCreditoBase64']);
     });
 
     Route::prefix('planes-pago/{planId}/pagos')->group(function () {
         Route::get('/',                        [PagosPlanController::class, 'index']);
         Route::post('/',                       [PagosPlanController::class, 'store']);
         Route::get('/{pagoId}/ticket-pdf',     [PagosPlanController::class, 'ticketAbono']);
+        Route::get('/{pagoId}/ticket-abono-base64', [PagosPlanController::class, 'ticketAbonoBase64']);
     });
 
 });

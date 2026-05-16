@@ -14,10 +14,14 @@ use App\Services\TicketService;
 
 class PlanesPagoController extends Controller
 {
-    public function __construct()
+    protected $ticketService;
+
+    public function __construct(TicketService $ticketService)
     {
         date_default_timezone_set('America/Mexico_City');
         Carbon::setLocale('es');
+
+        $this->ticketService = $ticketService;
     }
 
     public function index(Request $request)
@@ -250,7 +254,7 @@ class PlanesPagoController extends Controller
                 return $this->BadRequest('Plan de pago no encontrado.');
             }
 
-            $ticketService = app(\App\Services\TicketService::class);
+            $ticketService = app(TicketService::class);
             $pdf = $ticketService->generarPdfCredito($plan);
 
             $nombreArchivo = 'credito-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf';
@@ -259,6 +263,28 @@ class PlanesPagoController extends Controller
 
         } catch (Exception $e) {
             return $this->InternalError(['error' => 'Error al generar ticket de credito.', 'details' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Devuelve el PDF del ticket de credito en base64 para impresion con QZ Tray
+     */
+    public function ticketCreditoBase64(int $id)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $plan = PlanPago::with(['cliente', 'venta.establecimiento'])
+                ->where('id', $id)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->firstOrFail();
+
+            return $this->Success($this->ticketService->pdfCreditoBase64($plan));
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar el PDF en base64.',
+                'details' => $e->getMessage(),
+            ]);
         }
     }
 }

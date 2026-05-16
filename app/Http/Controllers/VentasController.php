@@ -393,6 +393,21 @@ class VentasController extends Controller
         }
     }
 
+    /**
+     * Devuelve el PDF del ticket de venta en base64 para impresion con QZ Tray
+     */
+    public function ticketBase64(int $id)
+    {
+        try {
+            return $this->Success($this->ticketService->pdfVentaBase64($id));
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar el PDF en base64.',
+                'details' => $e->getMessage(),
+            ]);
+        }
+    }
+
     // Historial de ventas con filtros
     public function historial(Request $request)
     {

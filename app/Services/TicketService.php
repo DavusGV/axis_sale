@@ -257,9 +257,10 @@ class TicketService
         $config = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimientoId)->first();
 
         return [
-            'formato_hora'  => $config->formato_hora ?? '12h',
-            'formato_fecha' => $config->formato_fecha ?? 'd/m/Y',
-            'num_cuenta'    => $config->num_cuenta ?? null,
+            'formato_hora'     => $config->formato_hora ?? '12h',
+            'formato_fecha'    => $config->formato_fecha ?? 'd/m/Y',
+            'num_cuenta'       => $config->num_cuenta ?? null,
+            'impresora_ticket' => $config->impresora_ticket ?? null, // <-- nuevo
         ];
     }
 
@@ -270,6 +271,20 @@ class TicketService
     {
         $ticket = $this->generarTicketVenta($id);
         return $this->crearPdfTicket($ticket);
+    }
+
+    /**
+     * Devuelve el PDF de venta en base64 para impresion con QZ Tray
+     */
+    public function pdfVentaBase64(int $id): array
+    {
+        $pdf   = $this->generarPdfVenta($id);
+        $venta = Ventas::findOrFail($id);
+
+        return [
+            'pdf_base64'     => base64_encode($pdf->output()),
+            'nombre_archivo' => 'ticket-' . ($venta->folio ?? 'venta-' . $id) . '.pdf',
+        ];
     }
 
     /**
@@ -290,12 +305,38 @@ class TicketService
     }
 
     /**
+     * Devuelve el PDF de credito en base64 para impresion con QZ Tray
+     */
+    public function pdfCreditoBase64(PlanPago $plan): array
+    {
+        $pdf = $this->generarPdfCredito($plan);
+
+        return [
+            'pdf_base64'     => base64_encode($pdf->output()),
+            'nombre_archivo' => 'credito-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf',
+        ];
+    }
+
+    /**
      * Genera el PDF del ticket de abono
      */
     public function generarPdfAbono(PlanPago $plan, PagoPlan $pago)
     {
         $ticket = $this->generarTicketAbono($plan, $pago);
         return $this->crearPdfTicket($ticket, 'pdf.tickets.ticket_abono');
+    }
+
+    /**
+     * Devuelve el PDF de abono en base64 para impresion con QZ Tray
+     */
+    public function pdfAbonoBase64(PlanPago $plan, PagoPlan $pago): array
+    {
+        $pdf = $this->generarPdfAbono($plan, $pago);
+
+        return [
+            'pdf_base64'     => base64_encode($pdf->output()),
+            'nombre_archivo' => 'abono-cuota' . $pago->numero_cuota . '-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf',
+        ];
     }
 
 

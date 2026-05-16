@@ -18,10 +18,14 @@ use App\Services\TicketService;
 
 class PagosPlanController extends Controller
 {
-    public function __construct()
+    protected $ticketService;
+
+    public function __construct(TicketService $ticketService)
     {
         date_default_timezone_set('America/Mexico_City');
         Carbon::setLocale('es');
+
+        $this->ticketService = $ticketService;
     }
 
     // listado de pagos de un plan especifico
@@ -222,7 +226,7 @@ class PagosPlanController extends Controller
                 return $this->BadRequest('Pago no encontrado.');
             }
 
-            $ticketService = app(\App\Services\TicketService::class);
+            $ticketService = app(TicketService::class);
             $pdf = $ticketService->generarPdfAbono($plan, $pago);
 
             $nombreArchivo = 'abono-cuota' . $pago->numero_cuota . '-' . ($plan->venta->folio ?? $plan->venta_id) . '.pdf';
@@ -231,6 +235,32 @@ class PagosPlanController extends Controller
 
         } catch (Exception $e) {
             return $this->InternalError(['error' => 'Error al generar ticket de abono.', 'details' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Devuelve el PDF del ticket de abono en base64 para impresion con QZ Tray
+     */
+    public function ticketAbonoBase64(int $planId, int $pagoId)
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            $plan = PlanPago::with(['cliente', 'venta.establecimiento'])
+                ->where('id', $planId)
+                ->where('establecimiento_id', $establecimiento_id)
+                ->firstOrFail();
+
+            $pago = PagoPlan::where('id', $pagoId)
+                ->where('plan_pago_id', $planId)
+                ->firstOrFail();
+
+            return $this->Success($this->ticketService->pdfAbonoBase64($plan, $pago));
+        } catch (Exception $e) {
+            return $this->InternalError([
+                'error'   => 'Error al generar el PDF en base64.',
+                'details' => $e->getMessage(),
+            ]);
         }
     }
 }
