@@ -51,6 +51,35 @@ Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
     Route::post('/foto',         [PerfilController::class, 'uploadFoto']);
 });
 
+// ruta para que QZ Tray valide el certificado del sitio
+Route::get('/qztray/certificado', function () {
+    $path = storage_path('app/qztray/digital-certificate.txt');
+
+    if (!file_exists($path)) {
+        return response()->json(['error' => 'Certificado no encontrado'], 404);
+    }
+
+    return response(file_get_contents($path), 200)
+        ->header('Content-Type', 'text/plain');
+});
+
+// ruta para firmar el mensaje de QZ Tray con la llave privada
+Route::post('/qztray/firmar', function (Request $request) {
+    $path = storage_path('app/qztray/private.key');
+
+    if (!file_exists($path)) {
+        return response()->json(['error' => 'Llave privada no encontrada'], 404);
+    }
+
+    $mensaje    = $request->input('mensaje', '');
+    $llavePrivada = file_get_contents($path);
+
+    openssl_sign($mensaje, $firma, $llavePrivada, 'SHA512');
+
+    return response(base64_encode($firma), 200)
+        ->header('Content-Type', 'text/plain');
+});
+
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
 
 
