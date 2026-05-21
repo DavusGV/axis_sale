@@ -58,12 +58,21 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function () {
 
-
+    // Rutas para roles y permisos
     Route::prefix('roles-permissions')->group(function () {
         Route::post('/roles', [RolePermissionController::class, 'createRole']);
+        Route::get('/roles', [RolePermissionController::class, 'getAllRoles']);
+        Route::get('/roles/{role}', [RolePermissionController::class, 'getPermissionsToRole']);
         Route::post('/permissions', [RolePermissionController::class, 'createPermission']);
-        Route::post('/assign-permissions', [RolePermissionController::class, 'assignPermissionsToRole']);
+        Route::get('/permissions', [RolePermissionController::class, 'getAllPermissions']);
+        Route::put('/permissions/{id}', [RolePermissionController::class, 'updatePermission']);
+        Route::delete('/permissions/{id}', [RolePermissionController::class, 'deletePermission']);
+        Route::post('/sync-permissions', [RolePermissionController::class, 'syncPermissionsToRole']);
         Route::post('/assign-role', [RolePermissionController::class, 'assignRoleToUser']);
+        Route::post('/change-role', [RolePermissionController::class, 'changeUserRole']);
+        Route::post('/categories', [RolePermissionController::class, 'createCategory']);
+        Route::get('/categories', [RolePermissionController::class, 'getAllCategories']);
+        Route::get('/categories/{categoryId?}/permissions', [RolePermissionController::class, 'getPermissionsByCategory']);
     });
     #region Buildings Routes demo
         Route::prefix('edificios')->group(function () {

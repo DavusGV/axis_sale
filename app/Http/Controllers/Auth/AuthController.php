@@ -8,6 +8,7 @@ use App\Services\AuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Exception;
 
@@ -54,7 +55,14 @@ class AuthController extends Controller
             ->select('establecimientos.id', 'establecimientos.nombre')
             ->orderBy('establecimiento_user.created_at', 'asc')->get();
 
-            return $this->Success(['token' => $token, 'user' => $user, 'establishment' => $establishment]);
+            $roles = $user->roles->map(function ($role) {
+                $permissions_b64 = $role->permissions->pluck('name')->map(function ($permiso) {
+                    return base64_encode(base64_encode($permiso));
+                });
+                return ['id' => $role->id, 'name' => $role->name,'permissions' => $permissions_b64,];
+            });
+
+            return $this->Success(['token' => $token, 'user' => $user, 'establishment' => $establishment, 'roles' => $roles]);
         } catch (ValidationException $e) {
             return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
         } catch (Exception $e) {
