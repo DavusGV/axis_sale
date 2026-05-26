@@ -246,11 +246,22 @@ class VentasController extends Controller
                     DB::rollBack();
                     return $planResponse;
                 }
+
+                // extraemos el plan creado para devolverlo en la respuesta de la venta
+                // asi el frontend puede validar que el credito quedo registrado
+                $planData = json_decode($planResponse->getContent(), true);
+                $planCreado = $planData['data']['plan'] ?? null;
             }
 
             DB::commit();
 
-            return $this->Success(['message' => 'Venta registrada exitosamente.', 'venta' => $venta]);
+            DB::commit();
+
+            return $this->Success([
+                'message'   => 'Venta registrada exitosamente.',
+                'venta'     => $venta,
+                'plan_pago' => $planCreado ?? null,
+            ]);
 
         } catch (ValidationException $ve) {
             DB::rollBack();
