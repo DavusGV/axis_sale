@@ -27,6 +27,9 @@ return new class extends Migration {
             $ventasAfectadas = [
                 ['folio' => 'VTA-GR26018', 'anticipo' => 5000.00],
                 ['folio' => 'VTA-GR26019', 'anticipo' => 40000.00],
+                ['folio' => 'VTA-GR26022', 'anticipo' => 0],
+                ['folio' => 'VTA-GR26025', 'anticipo' => 0],
+                ['folio' => 'VTA-GR26026', 'anticipo' => 11615.00],
             ];
 
             foreach ($ventasAfectadas as $info) {
