@@ -129,6 +129,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/{id}/cancelar', [VentasController::class, 'cancelarVenta']);
         Route::put('/{id}/metodo-pago', [VentasController::class, 'actualizarMetodoPago']);
         Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
+        Route::post('/{id}/resincronizar-credito', [VentasController::class, 'resincronizarCredito']);
         Route::get('/historial/export/excel', [VentasController::class, 'exportHistorialExcel']);
         Route::get('/historial/export/pdf',   [VentasController::class, 'exportHistorialPdf']);
         Route::get('/{id}/ticket-base64', [VentasController::class, 'ticketBase64']);

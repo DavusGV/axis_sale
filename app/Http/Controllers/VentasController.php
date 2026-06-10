@@ -12,6 +12,7 @@ use App\Models\Products;
 use App\Models\Ventas;
 use App\Models\VentasDetalles;
 use App\Models\UserEstablecimiento;
+use App\Models\PlanPago;
 use App\Models\{ConfiguracionEstablecimiento, Establecimiento};
 use App\Exports\VentasHistorialExport;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -255,8 +256,6 @@ class VentasController extends Controller
 
             DB::commit();
 
-            DB::commit();
-
             return $this->Success([
                 'message'   => 'Venta registrada exitosamente.',
                 'venta'     => $venta,
@@ -471,6 +470,9 @@ class VentasController extends Controller
                     'pago'          => $venta->pago,
                     'cambio'        => $venta->cambio,
                     'es_credito'    => $venta->planPago !== null,
+                    'anticipo'      => $venta->planPago?->anticipo ?? null,
+                    'saldo_pendiente' => $venta->planPago?->saldo_pendiente ?? null,
+                    'total_a_pagar'   => $venta->planPago?->total_a_pagar ?? null,
                     // primero revisamos si hay cliente directo en la venta,
                     // si no, tomamos el del plan de pago (ventas a credito anteriores)
                     'cliente' => $venta->cliente
@@ -544,7 +546,7 @@ class VentasController extends Controller
     {
         DB::beginTransaction();
         try {
-            $venta = Ventas::with('detalles')->findOrFail($id);
+            $venta = Ventas::with(['detalles', 'planPago.pagos'])->findOrFail($id);
 
             if (($venta->status ?? 'vendida') === 'cancelada') {
                 return $this->BadRequest([
@@ -552,9 +554,40 @@ class VentasController extends Controller
                 ]);
             }
 
+            // validaciones especiales para ventas a credito
+            if ($venta->planPago) {
+                // plan liquidado o cancelado no se edita
+                if (in_array($venta->planPago->estado, ['liquidado', 'cancelado'])) {
+                    return $this->BadRequest([
+                        'message' => 'No se puede editar una venta cuyo plan de pago esta ' . $venta->planPago->estado . '.'
+                    ]);
+                }
+
+                // el operador debe confirmar explicitamente que sabe lo que hace
+                if (!$request->boolean('confirmar_edicion_credito')) {
+                    $tienePagos = $venta->planPago->pagos->count() > 0;
+                    return $this->BadRequest([
+                        'message'         => 'Esta venta tiene un plan de pago activo. Confirma que entiendes que se recalculara el saldo adeudado.',
+                        'requiere_confirmacion' => true,
+                        'tiene_abonos'    => $tienePagos,
+                        'total_abonado'   => $venta->planPago->pagos->sum('monto_pagado'),
+                    ]);
+                }
+            }
+
             $establecimiento_id = app('establishment_id');
             $config  = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimiento_id)->first();
             $modoIva = $config->modo_iva ?? 'sin_iva';
+
+            // si es credito determinamos cual sera el anticipo final (el ajustado o el actual)
+            // y verificamos que los abonos no superen el nuevo total a pagar
+            if ($venta->planPago) {
+                $bloqueo = $this->verificarBloqueoPorAbonos($venta, $request, $modoIva);
+                if ($bloqueo !== null) {
+                    DB::rollBack();
+                    return $bloqueo;
+                }
+            }
 
             // ids de detalles que vienen en la peticion (excluyendo los nuevos con id 0)
             $idsRecibidos = collect($request->detalles)
@@ -672,19 +705,315 @@ class VentasController extends Controller
             $venta->subtotal  = round($nuevoSubtotal, 2);
             $venta->iva_total = round($nuevoIvaTotal, 2);
             $venta->total     = round($totalFinal, 2);
+
+            // si el operador ajusto el anticipo de forma explicita actualizamos
+            // tambien ventas.pago para que refleje el dinero real que quedo en caja
+            $anticipoAjustado = null;
+            if ($venta->planPago && $request->filled('anticipo_ajustado')) {
+                $anticipoAjustado = round((float) $request->anticipo_ajustado, 2);
+                $venta->pago      = $anticipoAjustado;
+            }
+
             $venta->save();
+
+            // si la venta es a credito recalculamos el plan de pago
+            $resumenPlan = null;
+            if ($venta->planPago) {
+                $resumenPlan = $this->recalcularPlanPagoPorEdicion(
+                    $venta->planPago->fresh('pagos'),
+                    (float) $venta->total,
+                    $anticipoAjustado
+                );
+            }
 
             DB::commit();
 
             return $this->Success([
-                'message' => 'Venta actualizada correctamente.',
-                'venta'   => $venta->fresh(['detalles']),
+                'message'   => 'Venta actualizada correctamente.',
+                'venta'     => $venta->fresh(['detalles']),
+                'plan_pago' => $resumenPlan,
             ]);
 
         } catch (Exception $e) {
             DB::rollBack();
             return $this->InternalError([
                 'error'   => 'Error al actualizar la venta.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Calcula el total tentativo de la venta segun los detalles entrantes
+     * y verifica si los abonos ya registrados superan el nuevo total a pagar
+     * tomando en cuenta el anticipo (ajustado o el actual)
+     * Si los abonos exceden devuelve un BadRequest, en caso contrario null
+     */
+    private function verificarBloqueoPorAbonos(Ventas $venta, Request $request, string $modoIva)
+    {
+        $totalTentativo     = 0;
+        $ivaTentativoTotal  = 0;
+        $descuentoTentativo = 0;
+
+        foreach ($request->detalles as $item) {
+            $cantidad         = (float) $item['cantidad'];
+            $precio           = (float) $item['precio'];
+            $descAplicado     = (float) ($item['descuento_aplicado'] ?? 0);
+            $subtotalBruto    = $precio * $cantidad;
+            $subtotalNeto     = $subtotalBruto - $descAplicado;
+
+            // necesitamos el iva del producto para calcular el total tentativo correcto
+            $ivaPorcentaje = 0;
+            if (!empty($item['detalle_id']) && $item['detalle_id'] > 0) {
+                $detalleActual = VentasDetalles::find($item['detalle_id']);
+                $ivaPorcentaje = $detalleActual->iva_porcentaje ?? 0;
+            } else {
+                $producto = Products::find($item['producto_id']);
+                $ivaPorcentaje = $producto->iva ?? 0;
+            }
+
+            if ($modoIva === 'iva_adicional' && $ivaPorcentaje > 0) {
+                $ivaTentativoTotal += $subtotalNeto * ($ivaPorcentaje / 100);
+            }
+
+            $totalTentativo     += $subtotalBruto;
+            $descuentoTentativo += $descAplicado;
+        }
+
+        $totalFinalTentativo = $totalTentativo - $descuentoTentativo;
+        if ($modoIva === 'iva_adicional') {
+            $totalFinalTentativo += $ivaTentativoTotal;
+        }
+
+        $nuevoTotalAPagar = $totalFinalTentativo + (float) $venta->planPago->interes_aplicado;
+        $totalAbonado     = (float) $venta->planPago->pagos->sum('monto_pagado');
+
+        // si los abonos ya superan el nuevo total a pagar bloqueamos
+        // el cliente pago de mas y eso requiere intervencion de soporte
+        if ($totalAbonado > $nuevoTotalAPagar) {
+            $excedente = round($totalAbonado - $nuevoTotalAPagar, 2);
+            return $this->BadRequest([
+                'message' => 'No se puede aplicar esta edicion: los abonos ya registrados ($' .
+                            number_format($totalAbonado, 2) . ') superan el nuevo total a pagar ($' .
+                            number_format($nuevoTotalAPagar, 2) . ') por $' . number_format($excedente, 2) .
+                            '. Esta correccion requiere intervencion de soporte para gestionar la devolucion.',
+                'requiere_soporte' => true,
+                'total_abonado'    => $totalAbonado,
+                'nuevo_total'      => $nuevoTotalAPagar,
+                'excedente'        => $excedente,
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Recalcula el plan de pago cuando la venta a credito fue editada
+     *
+     * Si el operador envio anticipo_ajustado el anticipo del plan se actualiza
+     * El total_a_pagar se actualiza al nuevo total + interes pactado
+     * El total_financiado y saldo_pendiente se recalculan en base al anticipo final
+     * Si los abonos + anticipo cubren el nuevo total, el plan se marca liquidado
+     */
+    private function recalcularPlanPagoPorEdicion(PlanPago $plan, float $totalNuevo, ?float $anticipoAjustado = null): array
+    {
+        // nuevo total a pagar = total nuevo de la venta + interes que ya estaba pactado
+        // el interes original se respeta, no se recalcula
+        $interesAplicado  = (float) $plan->interes_aplicado;
+        $nuevoTotalAPagar = $totalNuevo + $interesAplicado;
+
+        // si el operador ajusto el anticipo lo aplicamos
+        // si no, mantenemos el original tal como esta en el plan
+        $anticipoOriginal = (float) $plan->anticipo;
+        $anticipoFinal    = $anticipoAjustado !== null ? $anticipoAjustado : $anticipoOriginal;
+
+        // si el anticipo final supera al nuevo total lo topamos
+        // esto deberia haber sido bloqueado por la validacion previa, pero como seguridad
+        $anticipoAplicable = min($anticipoFinal, $nuevoTotalAPagar);
+
+        // lo que el cliente debio financiar despues del anticipo
+        $nuevoFinanciado = $nuevoTotalAPagar - $anticipoAplicable;
+
+        // descontamos lo que ya abono en cuotas
+        $totalAbonado = (float) $plan->pagos->sum('monto_pagado');
+        $nuevoSaldo   = $nuevoFinanciado - $totalAbonado;
+
+        // saldo a favor del cliente por anticipo que sobra al nuevo total
+        // pasa cuando el operador no ajusto el anticipo pero el total bajo mas
+        $saldoFavorAnticipo = max($anticipoFinal - $nuevoTotalAPagar, 0);
+
+        // recalculamos la cuota con el saldo restante repartido en plazos pendientes
+        $cuotasPagadas    = $plan->pagos->count();
+        $plazosPendientes = max($plan->num_plazos - $cuotasPagadas, 1);
+
+        $nuevaCuota = floor($nuevoSaldo / $plazosPendientes);
+        if ($nuevaCuota < 1 && $nuevoSaldo > 0) {
+            $nuevaCuota = 1;
+        }
+
+        // si el saldo es cero o negativo el plan queda liquidado
+        if ($nuevoSaldo <= 0) {
+            $nuevoSaldo   = 0;
+            $nuevaCuota   = 0;
+            $plan->estado = 'liquidado';
+
+            // al liquidarse el credito la venta pasa a vendido
+            Ventas::where('id', $plan->venta_id)->update(['status' => 'vendido']);
+        } else {
+            // si tenia saldo y antes estaba en atrasado o vencido regresa a activo
+            if (in_array($plan->estado, ['atrasado', 'vencido'])) {
+                $plan->estado = 'activo';
+            }
+        }
+
+        $saldoFavorTotal = round($saldoFavorAnticipo, 2);
+
+        // actualizamos el plan con los valores correctos
+        $plan->total_venta      = $totalNuevo;
+        $plan->total_a_pagar    = $nuevoTotalAPagar;
+        $plan->anticipo         = round($anticipoFinal, 2);
+        $plan->total_financiado = round($nuevoTotalAPagar - $anticipoFinal, 2);
+        $plan->saldo_pendiente  = round($nuevoSaldo, 2);
+        $plan->monto_cuota      = $nuevaCuota;
+
+        // observacion descriptiva del ajuste
+        $nota = 'Plan recalculado por edicion de venta. Nuevo total: $' . number_format($totalNuevo, 2) . '.';
+
+        if ($anticipoAjustado !== null && abs($anticipoOriginal - $anticipoAjustado) > 0.01) {
+            $diferenciaAnticipo = $anticipoAjustado - $anticipoOriginal;
+            $nota .= ' Anticipo ajustado de $' . number_format($anticipoOriginal, 2) .
+                    ' a $' . number_format($anticipoAjustado, 2) .
+                    ' (' . ($diferenciaAnticipo < 0 ? 'devolucion' : 'entrega adicional') .
+                    ' de $' . number_format(abs($diferenciaAnticipo), 2) . ').';
+        } else {
+            $nota .= ' Anticipo se mantiene en $' . number_format($anticipoOriginal, 2) . '.';
+        }
+
+        if ($saldoFavorTotal > 0) {
+            $nota .= ' Cliente con saldo a favor de $' . number_format($saldoFavorTotal, 2) .
+                    ' (gestionar con soporte).';
+        }
+
+        $plan->observaciones = ($plan->observaciones ? $plan->observaciones . ' ' : '') . $nota;
+        $plan->save();
+
+        return [
+            'total_a_pagar'    => $plan->total_a_pagar,
+            'anticipo'         => $plan->anticipo,
+            'anticipo_anterior'=> $anticipoOriginal,
+            'anticipo_cambio'  => $anticipoAjustado !== null,
+            'total_financiado' => $plan->total_financiado,
+            'total_abonado'    => $totalAbonado,
+            'saldo_pendiente'  => $plan->saldo_pendiente,
+            'monto_cuota'      => $plan->monto_cuota,
+            'estado'           => $plan->estado,
+            'saldo_a_favor'    => $saldoFavorTotal,
+        ];
+    }
+
+    /**
+     * Resincroniza el plan de pago de una venta a credito sin editar productos
+     * Util para corregir inconsistencias previas donde el plan quedo desfasado
+     * respecto al total de la venta o donde ventas.pago no coincide con el anticipo
+     */
+    public function resincronizarCredito(Request $request, int $id)
+    {
+        DB::beginTransaction();
+        try {
+            $venta = Ventas::with(['planPago.pagos', 'detalles'])->findOrFail($id);
+
+            if (!$venta->planPago) {
+                return $this->BadRequest('Esta venta no tiene plan de pago asociado.');
+            }
+
+            if (in_array($venta->planPago->estado, ['liquidado', 'cancelado'])) {
+                return $this->BadRequest([
+                    'message' => 'No se puede resincronizar un plan ' . $venta->planPago->estado . '.'
+                ]);
+            }
+
+            $establecimiento_id = app('establishment_id');
+            $config  = ConfiguracionEstablecimiento::where('establecimiento_id', $establecimiento_id)->first();
+            $modoIva = $config->modo_iva ?? 'sin_iva';
+
+            // Recalcular totales desde los detalles reales
+            $subtotalReal    = 0;
+            $ivaTotalReal    = 0;
+            $descuentoTotal  = 0;
+
+            foreach ($venta->detalles as $detalle) {
+                $subtotalBruto   = $detalle->precio * $detalle->cantidad;
+                $descAplicado    = $detalle->descuento_aplicado ?? 0;
+                $subtotalNeto    = $subtotalBruto - $descAplicado;
+                $ivaPorcentaje   = $detalle->iva_porcentaje ?? 0;
+
+                if ($modoIva === 'iva_incluido' && $ivaPorcentaje > 0) {
+                    $ivaMonto = $subtotalNeto - ($subtotalNeto / (1 + $ivaPorcentaje / 100));
+                } elseif ($modoIva === 'iva_adicional' && $ivaPorcentaje > 0) {
+                    $ivaMonto = $subtotalNeto * ($ivaPorcentaje / 100);
+                } else {
+                    $ivaMonto = 0;
+                }
+
+                $subtotalReal   += $subtotalBruto;
+                $ivaTotalReal   += $ivaMonto;
+                $descuentoTotal += $descAplicado;
+            }
+
+            $totalReal = $subtotalReal - $descuentoTotal;
+            if ($modoIva === 'iva_adicional') {
+                $totalReal += $ivaTotalReal;
+            }
+
+            $totalReal    = round($totalReal, 2);
+            $subtotalReal = round($subtotalReal, 2);
+            $ivaTotalReal = round($ivaTotalReal, 2);
+
+            // Corregir venta si el total guardado difiere del real
+            $totalCorregido = false;
+            if (abs((float) $venta->total - $totalReal) > 0.01) {
+                $venta->total     = $totalReal;
+                $venta->subtotal  = $subtotalReal;
+                $venta->iva_total = $ivaTotalReal;
+                $totalCorregido   = true;
+            }
+
+            // Ajuste de anticipo (opcional)
+            $anticipoAjustado = null;
+            if ($request->filled('anticipo_ajustado')) {
+                $anticipoAjustado = round((float) $request->anticipo_ajustado, 2);
+
+                if ($anticipoAjustado > $totalReal) {
+                    DB::rollBack();
+                    return $this->BadRequest('El anticipo no puede ser mayor al total real de la venta ($' . number_format($totalReal, 2) . ').');
+                }
+
+                $venta->pago = $anticipoAjustado;
+            }
+
+            $venta->save();
+
+            // Recalcular plan usando el total corregido
+            $resumenPlan = $this->recalcularPlanPagoPorEdicion(
+                $venta->planPago->fresh('pagos'),
+                $totalReal,
+                $anticipoAjustado
+            );
+
+            DB::commit();
+
+            return $this->Success([
+                'message'         => 'Crédito resincronizado correctamente.',
+                'total_corregido' => $totalCorregido,
+                'total_real'      => $totalReal,
+                'venta'           => $venta->fresh(),
+                'plan_pago'       => $resumenPlan,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError([
+                'error'   => 'Error al resincronizar el crédito.',
                 'details' => $e->getMessage()
             ]);
         }
