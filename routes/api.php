@@ -154,6 +154,20 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::delete('/logo', [ConfiguracionEstablecimientoController::class, 'destroyLogo']);
     });
 
+    // ruta para descargar el certificado de QZ Tray y que el usuario lo instale manualmente
+    Route::get('/qztray/descargar-certificado', function () {
+        $path = storage_path('app/qztray/digital-certificate.txt');
+
+        if (!file_exists($path)) {
+            return response()->json(['error' => 'Certificado no encontrado'], 404);
+        }
+
+        return response()->download($path, 'digital-certificate.txt', [
+            'Content-Type'        => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="digital-certificate.txt"',
+        ]);
+    });
+
     Route::prefix('reportes')->group(function () {
         Route::post('/ventas', [ReportesController::class, 'ventasReport']);
         Route::post('/creditos', [ReportesController::class, 'creditosReport']);
