@@ -4,7 +4,7 @@ namespace App\Http\Controllers\VentasPdf;
 
 use App\Http\Controllers\Controller;
 use App\Models\HistorialCajas;
-use App\Models\User;
+use App\Models\PagoPlan;
 use App\Models\UserEstablecimiento;
 use App\Models\Ventas;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -24,22 +24,37 @@ class SaleHistoryBoxPdfController extends Controller
                     'message' => 'Historial de caja no encontrado'
                 ], 404);
             }
-            //Obtenemos las ventas relacionadas al historial de caja
+
+            // ventas del periodo de esta caja con su plan de pago para saber si es credito
             $ventas = Ventas::with([
                 'detalles.producto',
-                'usuario'
+                'usuario',
+                'planPago',
             ])->where('historial_caja_id', $historyId)
-            ->orderBy('created_at', 'asc')->get();
+              ->where('status', '!=', 'cancelada')
+              ->orderBy('created_at', 'asc')
+              ->get();
 
-            $resumen = $this->calcularResumenVentas($ventas); //Calcular resumen de ventas
-            $empresa = $this->obtenerDatosEmpresa($history->usuario_id); //Datos de empresa
+            // abonos registrados en caja
+            // cada abono apunta al historial_caja_id donde entro el dinero
+            $abonos = PagoPlan::with([
+                'plan.venta',
+            ])->where('historial_caja_id', $historyId)
+                ->orderBy('created_at', 'asc')
+                ->get();
+
             // Generamos la vista PDF
+            $resumen = $this->calcularResumen($ventas, $abonos); //Calcular resumen de ventas
+            $empresa = $this->obtenerDatosEmpresa(); //Datos de empresa
+
             $pdf = Pdf::loadView('pdf.cierre_caja', [
                 'historial' => $history,
-                'ventas' => $ventas,
-                'resumen' => $resumen,
-                'empresa' => $empresa
+                'ventas'    => $ventas,
+                'abonos'    => $abonos,
+                'resumen'   => $resumen,
+                'empresa'   => $empresa,
             ]);
+
             return $pdf->stream('reporte_caja_' . $historyId . '.pdf');
 
         } catch (Exception $e) {
@@ -49,96 +64,109 @@ class SaleHistoryBoxPdfController extends Controller
         }
     }
 
-    private function calcularResumenVentas($ventas)
+    /**
+     * Calcula los ingresos reales de la caja
+     * Los abonos se agrupan por separado por metodo de pago
+     */
+    private function calcularResumen($ventas, $abonos): array
     {
-        $totalGeneral = 0;
-        $totalEfectivo = 0;
-        $totalTransferencia = 0;
-        $totalCredito = 0;
-        $totalProductos = 0;
-        $totalDescuentos = 0;
+        $totalVentasDirectas = 0;
+        $totalAnticipos      = 0;
+        $totalDescuentos     = 0;
+        $totalProductos      = 0;
+
+        // acumula ingreso real por metodo de pago
+        $ventasPorMetodo = [];
 
         foreach ($ventas as $venta) {
 
-            $totalVenta = 0;
+            $esCredito = $venta->planPago !== null;
 
             foreach ($venta->detalles as $detalle) {
-
-                $subtotal = ($detalle->cantidad * $detalle->precio) - $detalle->descuento_aplicado;
-                $totalVenta += $subtotal;
-                //acumuladores globales
-                $totalProductos += $detalle->cantidad;
                 $totalDescuentos += $detalle->descuento_aplicado;
+                $totalProductos  += $detalle->cantidad;
             }
 
-            //total general de todas las ventas
-            $totalGeneral += $totalVenta;
+            // normalizamos el metodo para agrupar sin distincion de mayusculas
+            $metodo = ucfirst(strtolower($venta->metodo_pago ?? 'efectivo'));
 
-            //clasificamos por los metdos de pago
-            switch ($venta->metodo_pago) {
-                case 'Efectivo':
-                    $totalEfectivo += $totalVenta;
-                    break;
-                case 'Transferencia':
-                    $totalTransferencia += $totalVenta;
-                    break;
-                case 'Credito':
-                    $totalCredito += $totalVenta;
-                    break;
+            if ($esCredito) {
+                // solo el anticipo entro en caja
+                $anticipo        = (float) ($venta->planPago->anticipo ?? 0);
+                $totalAnticipos += $anticipo;
+
+                $ventasPorMetodo[$metodo] = ($ventasPorMetodo[$metodo] ?? 0) + $anticipo;
+            } else {
+                $monto                = (float) $venta->total;
+                $totalVentasDirectas += $monto;
+
+                $ventasPorMetodo[$metodo] = ($ventasPorMetodo[$metodo] ?? 0) + $monto;
             }
         }
 
+        // acumula abonos por metodo de pago
+        $totalAbonos     = 0;
+        $abonosPorMetodo = [];
+
+        foreach ($abonos as $abono) {
+            $monto        = (float) $abono->monto_pagado;
+            $totalAbonos += $monto;
+
+            $metodo = ucfirst(strtolower($abono->metodo_pago ?? 'efectivo'));
+            $abonosPorMetodo[$metodo] = ($abonosPorMetodo[$metodo] ?? 0) + $monto;
+        }
+
         return [
-            'total_ventas' => $ventas->count(),
-            'total_general' => $totalGeneral,
-            'total_efectivo' => $totalEfectivo,
-            'total_transferencia' => $totalTransferencia,
-            'total_credito' => $totalCredito,
-            'total_descuentos' => $totalDescuentos,
-            'total_productos' => $totalProductos
+            // conteos
+            'num_ventas'            => $ventas->count(),
+            'num_ventas_directas'   => $ventas->where('planPago', null)->count(),
+            'num_ventas_credito'    => $ventas->whereNotNull('planPago')->count(),
+            'num_abonos'            => $abonos->count(),
+            'total_productos'       => $totalProductos,
+
+            // totales por concepto
+            'total_ventas_directas' => $totalVentasDirectas,
+            'total_anticipos'       => $totalAnticipos,
+
+            // agrupados por metodo de pago para el resumen
+            'ventas_por_metodo'     => collect($ventasPorMetodo),
+            'abonos_por_metodo'     => collect($abonosPorMetodo),
+
+            // totales de abonos
+            'total_abonos'          => $totalAbonos,
+
+            // descuentos solo de referencia
+            'total_descuentos'      => $totalDescuentos,
+
+            // ingreso real total que entro en caja
+            'total_ingreso_real'    => $totalVentasDirectas + $totalAnticipos + $totalAbonos,
         ];
     }
 
-   private function obtenerDatosEmpresa($userId)
+    private function obtenerDatosEmpresa(): array
     {
+        $establecimiento_id  = app('establishment_id');
         $userEstablecimiento = UserEstablecimiento::with('establecimiento')
-            ->where('user_id', $userId)
+            ->where('establecimiento_id', $establecimiento_id)
             ->first();
 
-        
-        //inicializamos el logo por default
-        $logo = null;
+        $nombre = '';
+        $direccion = '';
+        $telefono = '';
 
         if ($userEstablecimiento && $userEstablecimiento->establecimiento) {
-
             $establecimiento = $userEstablecimiento->establecimiento;
             $nombre = $establecimiento->nombre;
             $direccion = $establecimiento->direccion;
             $telefono = $establecimiento->telefono;
-
-            //usamos el logo del establecimiento si existe, sino se usará el logo por default
-            if (!empty($establecimiento->logo)) {
-                $logoPath = public_path('storage/' . $establecimiento->logo);
-
-                if (file_exists($logoPath)) {
-                    $logo = base64_encode(file_get_contents($logoPath));
-                }
-            }
-        }
-
-        //usamos logo por deafult si no se encuentra el del establecimiento
-        if (!$logo) {
-            $defaultLogoPath = public_path('images/cart.png');
-            if (file_exists($defaultLogoPath)) {
-                $logo = base64_encode(file_get_contents($defaultLogoPath));
-            }
         }
 
         return [
             'nombre' => $nombre,
             'direccion' => $direccion,
             'telefono' => $telefono,
-            'logo' => $logo
+            // reutilizamos el helper global para obtener el logo en base64
+            'logo' => obtenerLogoEstablecimiento(),
         ];
     }
 }
