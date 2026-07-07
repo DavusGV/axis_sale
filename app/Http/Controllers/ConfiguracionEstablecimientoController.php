@@ -28,6 +28,7 @@ class ConfiguracionEstablecimientoController extends Controller
                     'formato_fecha' => 'd/m/Y',
                     'num_cuenta' => null,
                     'descuento_con_decimales' => false,
+                    'arrastre_saldo' => false,
                 ]
             );
 
@@ -67,6 +68,7 @@ class ConfiguracionEstablecimientoController extends Controller
                 'formato_fecha' => 'nullable|string|max:10',
                 'num_cuenta'    => 'nullable|string|max:50',
                 'descuento_con_decimales'    => 'required|boolean',
+                'arrastre_saldo'    => 'required|boolean',
             ]);
 
             $config = ConfiguracionEstablecimiento::updateOrCreate(
@@ -82,6 +84,7 @@ class ConfiguracionEstablecimientoController extends Controller
                     'formato_fecha'  => $request->formato_fecha,
                     'num_cuenta'  => $request->num_cuenta,
                     'descuento_con_decimales' => $request->descuento_con_decimales,
+                    'arrastre_saldo' => $request->arrastre_saldo,
                 ]
             );
 

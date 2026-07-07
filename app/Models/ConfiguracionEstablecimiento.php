@@ -19,12 +19,14 @@ class ConfiguracionEstablecimiento extends Model
         'formato_fecha',
         'num_cuenta',
         'descuento_con_decimales',
+        'arrastre_saldo',
     ];
 
     protected $casts = [
         'imprimir_ticket_venta' => 'boolean',
         'descuento_con_decimales' => 'boolean',
         'impresion_automatica'   => 'boolean',
+        'arrastre_saldo'          => 'boolean',
     ];
 
     // establecimiento al que pertenece esta configuracion

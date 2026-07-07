@@ -253,6 +253,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
     Route::prefix('finance/balance')->group(function () {
         Route::get('mensual',      [BalanceController::class, 'balanceMensual']);
         Route::get('historial',    [BalanceController::class, 'historial']);
+        Route::get('arrastre',     [BalanceController::class, 'arrastreSaldo']);
         Route::get('export/excel', [BalanceController::class, 'exportExcel']);
         Route::get('export/pdf',   [BalanceController::class, 'exportPdf']);
     });

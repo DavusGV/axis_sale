@@ -481,5 +481,73 @@ class BalanceController extends Controller
  
         return round($ingresosVentas + $ingresosAbonos, 2);
     }
+
+    /**
+     * Retorna el saldo acumulado total (ingresos - gastos) desde el inicio
+     * de registros del establecimiento hasta la fecha actual, sin filtro de mes o anio.
+     * Solo se consulta cuando arrastre_saldo esta activo en configuracion.
+     */
+    public function arrastreSaldo()
+    {
+        try {
+            $establecimiento_id = app('establishment_id');
+
+            // todas las ventas no canceladas desde siempre
+            $ventas = Ventas::where('establecimiento_id', $establecimiento_id)
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'cancelada')
+                    ->orWhereNull('status');
+                })
+                ->with('planPago')
+                ->get();
+
+            $ventasCreditoIds = $ventas->filter(fn($v) => $v->planPago !== null)
+                ->pluck('id')
+                ->toArray();
+
+            // ventas con metodo credito pero sin plan ligado son huerfanas, se excluyen
+            // igual que en balanceMensual e historial
+            $ventasHuerfanas = $ventas->filter(function ($v) use ($ventasCreditoIds) {
+                return !in_array($v->id, $ventasCreditoIds)
+                    && strtolower(trim($v->metodo_pago ?? '')) === 'credito';
+            })->pluck('id')->toArray();
+
+            $ingresosVentas = $ventas->sum(function ($v) use ($ventasCreditoIds, $ventasHuerfanas) {
+                if (in_array($v->id, $ventasHuerfanas)) {
+                    return 0;
+                }
+                if (in_array($v->id, $ventasCreditoIds)) {
+                    return $v->pago;
+                }
+                return $v->total;
+            });
+
+            // todos los abonos a credito cobrados desde siempre
+            $ingresosAbonos = PagoPlan::whereHas('plan', function ($q) use ($establecimiento_id) {
+                    $q->where('establecimiento_id', $establecimiento_id)
+                    ->where('estado', '!=', 'cancelado');
+                })
+                ->sum('monto_pagado');
+
+            $ingresos = $ingresosVentas + $ingresosAbonos;
+
+            // todos los gastos activos desde siempre
+            $gastos = Gastos::where('establecimiento_id', $establecimiento_id)
+                ->where('state', 1)
+                ->sum('monto');
+
+            $saldo = round($ingresos - $gastos, 2);
+
+            return $this->Success([
+                'ingresos_totales' => round($ingresos, 2),
+                'gastos_totales'   => round($gastos, 2),
+                'saldo_arrastre'   => $saldo,
+                'es_ganancia'      => $saldo >= 0,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->InternalError('Error al calcular el saldo de arrastre: ' . $e->getMessage());
+        }
+    }
     
 }
