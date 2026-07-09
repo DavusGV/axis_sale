@@ -277,27 +277,38 @@ class VentasController extends Controller
     {
         try {
             $request->validate([
+                'carrito' => 'sometimes|array',
                 'codigo' => 'required|string',
                 'establecimiento_id' => 'sometimes|integer'
             ]);
 
-            // El establecimiento activo se obtiene desde el header (X-Establishment-ID),
-            // enviado por el frontend y validado previamente por middleware.
-            $establecimiento = app('establishment_id');
+            // Código recibido del lector
+            $codigo_original = trim($request->codigo);
 
-            if (!$establecimiento) {
+            // Extraer únicamente los números si existen
+            $codigo_numerico = preg_replace('/\D/', '', $codigo_original);
+
+            //Establecimiento activo
+            $establecimiento_id = app('establishment_id');
+
+            if (!$establecimiento_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Usuario no tiene establecimiento asignado'
                 ], 400);
             }
 
-            $establecimiento_id = $establecimiento->establecimiento_id;
-
-            // Buscar producto por código de barra en este caso por codigo
-            $producto = Products::where('codigo', $request->codigo)
+            // 1. Buscar el código exactamente como llegó
+            $producto = Products::where('codigo', $codigo_original)
                 ->where('establecimiento_id', $establecimiento_id)
                 ->first();
+
+            // 2. Si no existe y contiene una parte numérica, intentar con ella
+            if (!$producto && !empty($codigo_numerico) && $codigo_numerico !== $codigo_original) {
+                $producto = Products::where('codigo', $codigo_numerico)
+                    ->where('establecimiento_id', $establecimiento_id)
+                    ->first();
+            }
 
             if (!$producto) {
                 return response()->json([
@@ -306,7 +317,7 @@ class VentasController extends Controller
                 ], 404);
             }
 
-            // Verificar si hay stock
+            // Verificar stock
             if ($producto->stock < 1) {
                 return response()->json([
                     'success' => false,
@@ -315,7 +326,20 @@ class VentasController extends Controller
                 ], 400);
             }
 
-            // Retornar datos del producto para el carrito
+            // validamos que el stock disponible no sea menor a la cantidad que ya esta en el carrito
+            $cantidadEnCarrito = collect($request->carrito ?? [])
+                ->where('producto_id', $producto->id)
+                ->sum('cantidad');
+
+            if ($cantidadEnCarrito >= $producto->stock) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'se ha agregado todo el stock disponible al carrito.',
+                    'stock_disponible' => $producto->stock,
+                    'cantidad_en_carrito' => $cantidadEnCarrito
+                ], 400);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Producto encontrado',

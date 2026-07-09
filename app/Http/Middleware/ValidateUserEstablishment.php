@@ -16,26 +16,27 @@ use App\Models\UserEstablecimiento;
 class ValidateUserEstablishment
 {
     public function handle(Request $request, Closure $next)
-    {
-        $user = Auth::user();
-        $establishmentId = app('establishment_id');
+{
+    $user = Auth::user();
 
-        if (!$establishmentId) {
-            return response()->json([
-                'message' => 'Establishment not provided'
-            ], 400);
-        }
+    $establishmentId = app()->bound('establishment_id')? app('establishment_id'): null;
 
-        $exists = UserEstablecimiento::where('user_id', $user->id)
-            ->where('establecimiento_id', $establishmentId)
-            ->exists();
-
-        if (!$exists) {
-            return response()->json([
-                'message' => 'You do not have access to this establishment'
-            ], 403);
-        }
-
-        return $next($request);
+    if (!$establishmentId) {
+        return response()->json([
+            'message' => 'Establishment not provided'
+        ], 400);
     }
+
+    $exists = UserEstablecimiento::where('user_id', $user->id)
+        ->where('establecimiento_id', $establishmentId)
+        ->exists();
+
+    if (!$exists) {
+        return response()->json([
+            'message' => 'You do not have access to this establishment'
+        ], 403);
+    }
+
+    return $next($request);
+}
 }
