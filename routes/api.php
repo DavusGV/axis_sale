@@ -26,6 +26,7 @@ use App\Http\Controllers\ConfiguracionEstablecimientoController;
 use App\Http\Controllers\CotizacionesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UnidadesMedidasController;
+use App\Http\Controllers\StockController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,6 +49,35 @@ Route::middleware('auth:sanctum')->prefix('perfil')->group(function () {
     Route::get('/',              [PerfilController::class, 'show']);
     Route::put('/',              [PerfilController::class, 'update']);
     Route::post('/foto',         [PerfilController::class, 'uploadFoto']);
+});
+
+// ruta para que QZ Tray valide el certificado del sitio
+Route::get('/qztray/certificado', function () {
+    $path = storage_path('app/qztray/digital-certificate.txt');
+
+    if (!file_exists($path)) {
+        return response()->json(['error' => 'Certificado no encontrado'], 404);
+    }
+
+    return response(file_get_contents($path), 200)
+        ->header('Content-Type', 'text/plain');
+});
+
+// ruta para firmar el mensaje de QZ Tray con la llave privada
+Route::post('/qztray/firmar', function (Request $request) {
+    $path = storage_path('app/qztray/private.key');
+
+    if (!file_exists($path)) {
+        return response()->json(['error' => 'Llave privada no encontrada'], 404);
+    }
+
+    $mensaje    = $request->input('mensaje', '');
+    $llavePrivada = file_get_contents($path);
+
+    openssl_sign($mensaje, $firma, $llavePrivada, 'SHA512');
+
+    return response(base64_encode($firma), 200)
+        ->header('Content-Type', 'text/plain');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('logout');
@@ -110,6 +140,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::put('/{id}/detalles', [VentasController::class, 'actualizarDetalles']);
         Route::get('/historial/export/excel', [VentasController::class, 'exportHistorialExcel']);
         Route::get('/historial/export/pdf',   [VentasController::class, 'exportHistorialPdf']);
+        Route::get('/{id}/ticket-base64', [VentasController::class, 'ticketBase64']);
     });
 
     // rutas de cotizaciones
@@ -117,7 +148,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/',                     [CotizacionesController::class, 'index']);
         Route::post('/',                    [CotizacionesController::class, 'store']);
         Route::put('/{id}/detalles',        [CotizacionesController::class, 'actualizarDetalles']);
-        Route::get('/{id}/ticket-pdf', [CotizacionesController::class, 'descargarTicketPdf']);
+        Route::get('/{id}/ticket-pdf',      [CotizacionesController::class, 'descargarTicketPdf']);
         Route::get('/{id}/ticket',          [CotizacionesController::class, 'ticketCotizacion']);
         Route::get('/{id}/comprobar',       [CotizacionesController::class, 'comprobarStock']);
         Route::post('/{id}/convertir',      [CotizacionesController::class, 'convertirVenta']);
@@ -141,6 +172,9 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/', [ProductsController::class, 'store']);
         Route::put('/{id}', [ProductsController::class, 'update']);
         Route::delete('/{id}', [ProductsController::class, 'destroy']);
+        Route::get('/template/download', [ProductsController::class, 'downloadTemplate']);
+        Route::post('/import/preview',   [ProductsController::class, 'previewImport']);
+        Route::post('/import',           [ProductsController::class, 'executeImport']);
     });
 
     Route::prefix('unidades-medidas')->group(function () {
@@ -148,6 +182,12 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/',         [UnidadesMedidasController::class, 'store']);
         Route::put('/{id}',      [UnidadesMedidasController::class, 'update']);
         Route::delete('/{id}',   [UnidadesMedidasController::class, 'destroy']);
+    });
+
+    Route::prefix('stock')->group(function () {
+        Route::get('/productos',    [StockController::class, 'productosParaSelect']);
+        Route::get('/cronologia',   [StockController::class, 'cronologia']);
+        Route::post('/movimientos', [StockController::class, 'registrarMovimiento']);
     });
 
     Route::prefix('establecimientos')->group(function () {
@@ -226,12 +266,14 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/',                   [PlanesPagoController::class, 'store']);
         Route::get('/{id}',                [PlanesPagoController::class, 'show']);
         Route::get('/{id}/ticket-pdf',     [PlanesPagoController::class, 'ticketCredito']);
+        Route::get('/{id}/ticket-credito-base64', [PlanesPagoController::class, 'ticketCreditoBase64']);
     });
 
     Route::prefix('planes-pago/{planId}/pagos')->group(function () {
         Route::get('/',                        [PagosPlanController::class, 'index']);
         Route::post('/',                       [PagosPlanController::class, 'store']);
         Route::get('/{pagoId}/ticket-pdf',     [PagosPlanController::class, 'ticketAbono']);
+        Route::get('/{pagoId}/ticket-abono-base64', [PagosPlanController::class, 'ticketAbonoBase64']);
     });
 
 });

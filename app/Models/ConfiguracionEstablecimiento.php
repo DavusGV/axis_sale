@@ -13,6 +13,8 @@ class ConfiguracionEstablecimiento extends Model
         'imprimir_ticket_venta',
         'impresora_ancho',
         'impresora_alto',
+        'impresora_ticket',
+        'impresion_automatica',
         'formato_hora',
         'formato_fecha',
         'num_cuenta',
@@ -21,6 +23,8 @@ class ConfiguracionEstablecimiento extends Model
 
     protected $casts = [
         'imprimir_ticket_venta' => 'boolean',
+        'descuento_con_decimales' => 'boolean',
+        'impresion_automatica'   => 'boolean',
     ];
 
     // establecimiento al que pertenece esta configuracion

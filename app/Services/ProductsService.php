@@ -1,11 +1,14 @@
 <?php
-// EdificioService.php
+// ProductsService.php
 namespace App\Services;
+
 use Illuminate\Http\Request;
 use App\Models\Products;
 use App\Models\UserEstablecimiento;
 use App\Models\Category;
+use App\Models\MovimientoStock;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Exception;
 
@@ -54,7 +57,6 @@ class ProductsService
 
     public function getById($id)
     {
-
         return Products::where('id', $id)
             ->where('establecimiento_id', app('establishment_id'))
             ->firstOrFail();
@@ -98,7 +100,17 @@ class ProductsService
             $data['imagen'] = $filename;
         }
 
-        return Products::create($data);
+        $product = Products::create($data);
+
+        // Registramos el movimiento de alta inicial solo si:
+        // - el producto no es servicio
+        // - el stock inicial es mayor a 0
+        // De esta forma queda en la cronologia del dashboard como una entrada.
+        if (!$product->es_servicio && (int) $product->stock > 0) {
+            $this->registrarMovimientoAlta($product, $establecimiento_id);
+        }
+
+        return $product;
     }
 
     public function update($id, array $data)
@@ -110,6 +122,11 @@ class ProductsService
          $product = Products::where('id', $id)
             ->where('establecimiento_id', $establecimiento_id)
             ->firstOrFail();
+
+        // bloqueamos cualquier modificacion al stock desde el formulario de edicion del producto
+        // el stock SOLO puede cambiar via movimientos (entrada/reduccion) o ventas
+        // si el frontend manda stock, lo ignoramos
+        unset($data['stock']);
 
          if (isset($data['imagen']) && $data['imagen'] instanceof \Illuminate\Http\UploadedFile) {
 
@@ -161,6 +178,33 @@ class ProductsService
         });
 
         return $product;
+    }
+
+    /**
+     * Registra el movimiento de alta inicial del producto en la tabla movimientos_stock.
+     * Se llama solo para productos nuevos con stock mayor a 0 que no sean servicio.
+     * Asi la cronologia del dashboard arranca con la entrada inicial del producto.
+     */
+    private function registrarMovimientoAlta(Products $product, int $establecimientoId): void
+    {
+        $usuarioId = Auth::id();
+
+        // si por alguna razon no hay usuario autenticado, no rompemos la creacion del producto
+        // simplemente omitimos el movimiento (esto no deberia ocurrir bajo auth:sanctum)
+        if (!$usuarioId) {
+            return;
+        }
+
+        MovimientoStock::create([
+            'establecimiento_id' => $establecimientoId,
+            'producto_id'        => $product->id,
+            'usuario_id'         => $usuarioId,
+            'tipo'               => 'entrada',
+            'cantidad'           => (int) $product->stock,
+            'stock_anterior'     => 0,
+            'stock_nuevo'        => (int) $product->stock,
+            'motivo'             => 'Alta inicial del producto',
+        ]);
     }
 
     /**
