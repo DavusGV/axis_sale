@@ -66,7 +66,7 @@ class SaleHistoryBoxPdfController extends Controller
 
                 $subtotal = ($detalle->cantidad * $detalle->precio) - $detalle->descuento_aplicado;
                 $totalVenta += $subtotal;
-                //acumuladores globales
+                //acumuladores
                 $totalProductos += $detalle->cantidad;
                 $totalDescuentos += $detalle->descuento_aplicado;
             }

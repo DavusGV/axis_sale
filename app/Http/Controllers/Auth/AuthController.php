@@ -8,7 +8,11 @@ use App\Services\AuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+
+use App\Http\Resources\UserResource;
+use App\Http\Resources\RoleResource;
 use Exception;
 
 
@@ -46,7 +50,8 @@ class AuthController extends Controller
                 return $this->Unauthorized();
             }
             
-            $user = Auth::user();
+            // cargamos el rol y permisos antes para no obter pemisos vacios
+            $user = Auth::user()->load('roles.permissions');;
         
             $establishment = UserEstablecimiento::query()
             ->where('user_id', $user->id)
@@ -54,7 +59,14 @@ class AuthController extends Controller
             ->select('establecimientos.id', 'establecimientos.nombre')
             ->orderBy('establecimiento_user.created_at', 'asc')->get();
 
-            return $this->Success(['token' => $token, 'user' => $user, 'establishment' => $establishment]);
+
+            return $this->Success([
+                'token' => $token, 
+                'user' => new UserResource($user), 
+                'establishment' => $establishment, 
+                'roles' => RoleResource::collection($user->roles)
+                ]);
+
         } catch (ValidationException $e) {
             return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
         } catch (Exception $e) {
