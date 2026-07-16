@@ -29,6 +29,7 @@ class ConfiguracionEstablecimientoController extends Controller
                     'num_cuenta' => null,
                     'descuento_con_decimales' => false,
                     'arrastre_saldo' => false,
+                    'ticket_descargar_auto' => false,
                 ]
             );
 
@@ -69,6 +70,7 @@ class ConfiguracionEstablecimientoController extends Controller
                 'num_cuenta'    => 'nullable|string|max:50',
                 'descuento_con_decimales'    => 'required|boolean',
                 'arrastre_saldo'    => 'required|boolean',
+                'ticket_descargar_auto' => 'required|boolean',
             ]);
 
             $config = ConfiguracionEstablecimiento::updateOrCreate(
@@ -85,6 +87,7 @@ class ConfiguracionEstablecimientoController extends Controller
                     'num_cuenta'  => $request->num_cuenta,
                     'descuento_con_decimales' => $request->descuento_con_decimales,
                     'arrastre_saldo' => $request->arrastre_saldo,
+                    'ticket_descargar_auto' => $request->ticket_descargar_auto,
                 ]
             );
 
