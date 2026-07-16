@@ -480,6 +480,7 @@ class VentasController extends Controller
                         : ($venta->planPago?->cliente
                             ? $venta->planPago->cliente->nombre . ' ' . $venta->planPago->cliente->apellido_p
                             : null),
+                    'cliente_id'    => $venta->cliente_id ?? $venta->planPago?->cliente_id,
                     'num_productos' => $venta->detalles->sum('cantidad'),
                     'detalles'      => $venta->detalles->map(function ($d) {
                         return [
@@ -537,6 +538,73 @@ class VentasController extends Controller
         } catch (Exception $e) {
             return $this->InternalError([
                 'error'   => 'Error al actualizar el metodo de pago.',
+                'details' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Asigna, cambia o quita el cliente de una venta.
+    // En ventas a credito sincroniza tambien el cliente del plan de pago.
+    public function actualizarCliente(Request $request, int $id)
+    {
+        DB::beginTransaction();
+        try {
+            $request->validate(['cliente_id' => 'nullable|integer']);
+
+            $venta = Ventas::with('planPago')->findOrFail($id);
+
+            if (($venta->status ?? 'vendido') === 'cancelada') {
+                DB::rollBack();
+                return $this->BadRequest(['message' => 'No se puede editar una venta cancelada.']);
+            }
+
+            $establecimiento_id = app('establishment_id');
+            $clienteId = $request->filled('cliente_id') ? (int) $request->cliente_id : null;
+
+            // una venta a credito no puede quedarse sin cliente: el plan de pago lo requiere
+            if ($clienteId === null && $venta->planPago) {
+                DB::rollBack();
+                return $this->BadRequest(['message' => 'Una venta a crédito debe tener un cliente asignado.']);
+            }
+
+            // si se asigna cliente validamos que exista y pertenezca al establecimiento
+            // usamos la relacion de la venta para no acoplar el nombre del modelo cliente
+            if ($clienteId !== null) {
+                $cliente = $venta->cliente()->getRelated()->newQuery()
+                    ->where('id', $clienteId)
+                    ->where('establecimiento_id', $establecimiento_id)
+                    ->first();
+
+                if (!$cliente) {
+                    DB::rollBack();
+                    return $this->BadRequest(['message' => 'El cliente no existe o no pertenece a este establecimiento.']);
+                }
+            }
+
+            // actualizamos la venta
+            $venta->cliente_id = $clienteId;
+            $venta->save();
+
+            // en ventas a credito sincronizamos el cliente del plan de pago
+            if ($venta->planPago) {
+                $venta->planPago->cliente_id = $clienteId;
+                $venta->planPago->save();
+            }
+
+            DB::commit();
+
+            return $this->Success([
+                'message' => 'Cliente actualizado correctamente.',
+                'venta'   => $venta->fresh(['cliente', 'planPago']),
+            ]);
+
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->InternalError([
+                'error'   => 'Error al actualizar el cliente de la venta.',
                 'details' => $e->getMessage()
             ]);
         }

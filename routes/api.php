@@ -133,6 +133,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/historial/export/excel', [VentasController::class, 'exportHistorialExcel']);
         Route::get('/historial/export/pdf',   [VentasController::class, 'exportHistorialPdf']);
         Route::get('/{id}/ticket-base64', [VentasController::class, 'ticketBase64']);
+        Route::put('/{id}/cliente', [VentasController::class, 'actualizarCliente']);
     });
 
     // rutas de cotizaciones
