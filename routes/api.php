@@ -173,7 +173,7 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::post('/creditos', [ReportesController::class, 'creditosReport']);
     });
 
-     Route::prefix('products')->group(function () {
+    Route::prefix('products')->group(function () {
         Route::get('/', [ProductsController::class, 'index']);
         Route::post('/', [ProductsController::class, 'store']);
         Route::put('/{id}', [ProductsController::class, 'update']);
@@ -181,6 +181,8 @@ Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function ()
         Route::get('/template/download', [ProductsController::class, 'downloadTemplate']);
         Route::post('/import/preview',   [ProductsController::class, 'previewImport']);
         Route::post('/import',           [ProductsController::class, 'executeImport']);
+        Route::post('/barcodes/preview', [ProductsController::class, 'previewBarcodes']);
+        Route::match(['get', 'post'], '/barcodes/pdf', [ProductsController::class, 'generateBarcodesPdf']);
     });
 
     Route::prefix('unidades-medidas')->group(function () {

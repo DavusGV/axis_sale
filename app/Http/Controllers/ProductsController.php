@@ -6,6 +6,8 @@ use App\Services\ProductsService;
 use App\Exports\ProductsTemplateExport;
 use App\Exports\ProductsErrorsExport;
 use App\Services\ProductsImportService;
+use App\DTOs\BarcodeDTO;
+use App\Services\ProductsBarcodeService;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -237,6 +239,38 @@ class ProductsController extends Controller
                 'error'   => 'Error al ejecutar la importacion',
                 'message' => $e->getMessage(),
             ]);
+        }
+    }
+
+    // Preview liviano: totales + primera pagina con barcodes reales
+    public function previewBarcodes(Request $request, ProductsBarcodeService $barcodeService)
+    {
+        try {
+            $data = BarcodeDTO::validate($request->all());
+            return $this->Success($barcodeService->preview($data));
+        } catch (ValidationException $e) {
+            return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al generar el preview', 'message' => $e->getMessage()]);
+        }
+    }
+
+    // Genera el PDF de etiquetas con ?html=1 devuelve el HTML para calibrar en el navegador.
+    public function generateBarcodesPdf(Request $request, ProductsBarcodeService $barcodeService)
+    {
+        try {
+            $data = BarcodeDTO::validate($request->all());
+
+            if ($request->boolean('html')) {
+                return response($barcodeService->html($data));
+            }
+
+            $pdf = $barcodeService->generar($data);
+            return $pdf->download('codigos_barras_' . date('Ymd_His') . '.pdf');
+        } catch (ValidationException $e) {
+            return $this->BadRequest(['error' => 'Validation failed', 'messages' => $e->errors()]);
+        } catch (Exception $e) {
+            return $this->InternalError(['error' => 'Error al generar el PDF', 'message' => $e->getMessage()]);
         }
     }
 }
