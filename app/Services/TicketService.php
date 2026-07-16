@@ -11,6 +11,28 @@ use Carbon\Carbon;
 
 class TicketService
 {
+    
+    /**
+     * Calcula el porcentaje de ancho seguro de impresion y el margen izquierdo
+     * en base al ancho nominal configurado, para evitar que el cabezal recorte contenido
+     */
+    private function calcularAreaSegura(int $anchoNominal): array
+    {
+        // mapea el ancho nominal del rollo al ancho realmente imprimible por el cabezal
+        $anchosImprimibles = [
+            58 => 48,
+            80 => 72,
+        ];
+        $margenIzquierdoMm = 3.3; // mm que el cabezal no imprime del lado izquierdo
+
+        $anchoImprimible = $anchosImprimibles[$anchoNominal] ?? $anchoNominal;
+
+        return [
+            'ancho_seguro'     => round(($anchoImprimible / $anchoNominal) * 100, 2),
+            'margen_izquierdo' => round(($margenIzquierdoMm / $anchoNominal) * 100, 2),
+        ];
+    }
+
     /**
      * Genera el ticket de una venta por su id
      */
@@ -115,10 +137,15 @@ class TicketService
         // logo usando el helper igual que en los otros tickets
         $logoBase64 = obtenerLogoBase64($plan->venta->establecimiento);
 
+        $areaSegura = $this->calcularAreaSegura($config['impresora_ancho']);
+
         return [
             'logo_url'          => $logoBase64,
             'establecimiento'   => $plan->venta->establecimiento->nombre ?? 'MI NEGOCIO',
             'formato_fecha'     => $config['formato_fecha'],
+            'impresora_ancho'   => $config['impresora_ancho'],
+            'ancho_seguro'      => $areaSegura['ancho_seguro'],
+            'margen_izquierdo'  => $areaSegura['margen_izquierdo'],
             'folio_venta'       => $plan->venta->folio ?? '#' . $plan->venta_id,
             'fecha_inicio'      => Carbon::parse($plan->fecha_inicio)->format($config['formato_fecha']),
             'fecha_proximo_pago'=> Carbon::parse($plan->fecha_proximo_pago)->format($config['formato_fecha']),
@@ -153,10 +180,15 @@ class TicketService
 
         $logoBase64 = obtenerLogoBase64($plan->venta->establecimiento);
 
+        $areaSegura = $this->calcularAreaSegura($config['impresora_ancho']);
+
         return [
             'logo_url'          => $logoBase64,
             'establecimiento'   => $plan->venta->establecimiento->nombre ?? 'MI NEGOCIO',
             'formato_fecha'     => $config['formato_fecha'],
+            'impresora_ancho'   => $config['impresora_ancho'],
+            'ancho_seguro'      => $areaSegura['ancho_seguro'],
+            'margen_izquierdo'  => $areaSegura['margen_izquierdo'],
             'folio_venta'       => $plan->venta->folio ?? '#' . $plan->venta_id,
             'fecha_pago'        => Carbon::parse($pago->fecha_pago)->format($config['formato_fecha']),
             'numero_cuota'      => $pago->numero_cuota,
@@ -227,6 +259,8 @@ class TicketService
             $vendedor = trim($entidad->usuario->name ?? '');
         }
 
+        $areaSegura = $this->calcularAreaSegura($config['impresora_ancho']);
+
         return [
             'id'              => $entidad->id,
             'folio'           => $entidad->folio,
@@ -244,6 +278,9 @@ class TicketService
             'formato_hora'    => $formatoHora,
             'formato_fecha'   => $formatoFecha,
             'num_cuenta'      => $config['num_cuenta'],
+            'impresora_ancho' => $config['impresora_ancho'],
+            'ancho_seguro'    => $areaSegura['ancho_seguro'],
+            'margen_izquierdo'=> $areaSegura['margen_izquierdo'],
             'vendedor'        => $vendedor,
             'productos'       => $productos,
         ];
@@ -260,7 +297,8 @@ class TicketService
             'formato_hora'     => $config->formato_hora ?? '12h',
             'formato_fecha'    => $config->formato_fecha ?? 'd/m/Y',
             'num_cuenta'       => $config->num_cuenta ?? null,
-            'impresora_ticket' => $config->impresora_ticket ?? null, // <-- nuevo
+            'impresora_ticket' => $config->impresora_ticket ?? null,
+            'impresora_ancho'  => $config->impresora_ancho ?? 80,
         ];
     }
 
@@ -347,7 +385,8 @@ class TicketService
      */
     private function crearPdfTicket(array $ticket, string $vista = 'pdf.tickets.ticket')
     {
-        $anchoPt = 226.77; // 80mm en puntos
+        $anchoMm = $ticket['impresora_ancho'] ?? 80;
+        $anchoPt = $anchoMm * 2.83464567; // conversion de mm a puntos
 
         // primera pasada: renderizamos para calcular la altura real del contenido
         $pdfPrevio = Pdf::loadView($vista, ['ticket' => $ticket]);

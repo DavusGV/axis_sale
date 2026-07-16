@@ -7,64 +7,62 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'DejaVu Sans', sans-serif;
-            font-size: 7px;
+            font-family: 'DejaVu Sans Mono', monospace;
+            font-size: 10px;
             color: #000;
             background: #fff;
             width: 100%;
-            padding: 1mm;
+            padding: 0.5mm;
             margin: 0;
+            word-spacing: -1px;
+            line-height: 1.1;
         }
 
         .contenedor {
-            width: 215px;
-            margin: 0 auto;
+            width: {{ $ticket['ancho_seguro'] ?? 100 }}%;
+            margin: 0 0 0 {{ $ticket['margen_izquierdo'] ?? 0 }}%;
         }
 
-        /* CABECERA */
         .header {
             text-align: center;
-            padding-bottom: 1.5mm;
+            padding-bottom: 0.8mm;
             border-bottom: 2px solid #000;
-            margin-bottom: 1.5mm;
+            margin-bottom: 0.8mm;
         }
         .header img {
             max-height: 12mm;
             display: block;
-            margin: 0 auto 1mm;
+            margin: 0 auto 0.5mm;
         }
         .header .nombre {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0px;
         }
         .tipo-doc {
             text-align: center;
-            font-size: 8px;
+            font-size: 9px;
             font-weight: bold;
             text-transform: uppercase;
-            padding: 1mm 0;
+            padding: 0.5mm 0;
             border-bottom: 1px solid #000;
-            margin-bottom: 1mm;
-            letter-spacing: 0.3px;
+            margin-bottom: 0.5mm;
+            letter-spacing: 0px;
         }
 
-        /* SEPARADORES */
-        .sep { border: none; border-top: 1px dashed #000; margin: 1.2mm 0; }
-        .sep-doble { border: none; border-top: 2px solid #000; margin: 1.2mm 0; }
+        .sep { border: none; border-top: 1px dashed #000; margin: 0.6mm 0; }
 
-        /* FILAS DE DATOS */
         .fila {
             width: 100%;
             border: none;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-bottom: 0.3mm;
+            margin-bottom: 0;
         }
         .fila td {
-            padding: 0.2mm 0;
-            font-size: 6.5px;
+            padding: 0;
+            font-size: 8px;
             vertical-align: top;
         }
         .fila .l {
@@ -79,18 +77,17 @@
             word-wrap: break-word;
         }
 
-        /* FILA RESALTADA CON BORDE DOBLE */
         .fila-total {
             width: 100%;
             border: none;
             border-collapse: collapse;
             table-layout: fixed;
-            margin: 0.5mm 0;
+            margin: 0.3mm 0;
             border-top: 2px solid #000;
             border-bottom: 2px solid #000;
         }
         .fila-total td {
-            padding: 0.8mm 0;
+            padding: 0.4mm 0;
             font-size: 9px;
             font-weight: bold;
             vertical-align: middle;
@@ -98,30 +95,28 @@
         .fila-total .l { text-align: left; width: 40%; }
         .fila-total .v { text-align: right; width: 60%; }
 
-        /* TITULO DE SECCION */
         .sec-titulo {
             font-weight: bold;
             font-size: 7px;
             text-transform: uppercase;
-            padding: 0.5mm 0;
-            margin-bottom: 0.5mm;
+            padding: 0.3mm 0;
+            margin-bottom: 0.2mm;
             border-bottom: 1px solid #000;
-            letter-spacing: 0.3px;
+            letter-spacing: 0px;
         }
 
-        /* PIE */
         .pie {
             text-align: center;
-            font-size: 6.5px;
+            font-size: 7px;
             color: #000;
-            margin-top: 1.5mm;
+            margin-top: 0.6mm;
             font-weight: bold;
         }
         .pie-sub {
             text-align: center;
-            font-size: 5.5px;
+            font-size: 7px;
             color: #333;
-            margin-top: 0.5mm;
+            margin-top: 0.3mm;
         }
     </style>
 </head>
@@ -220,7 +215,7 @@
 
     @if(!empty($ticket['notas']))
         <div class="sec-titulo">NOTAS</div>
-        <div style="font-size: 6.5px; padding: 0.5mm 0;">{{ $ticket['notas'] }}</div>
+        <div style="font-size: 8px; padding: 0.3mm 0;">{{ $ticket['notas'] }}</div>
     @endif
 
     {{-- PIE segun estado --}}

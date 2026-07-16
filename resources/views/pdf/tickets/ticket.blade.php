@@ -7,55 +7,57 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'DejaVu Sans', sans-serif;
-            font-size: 7px;
+            font-family: 'DejaVu Sans Mono', monospace;
+            font-size: 10px;
             color: #000;
             background: #fff;
             width: 100%;
-            padding: 1mm;
+            padding: 0.5mm;
             margin: 0;
+            word-spacing: -1px;
+            line-height: 1.1;
         }
 
         .contenedor {
-            width: 215px;
-            margin: 0 auto;
+            width: {{ $ticket['ancho_seguro'] ?? 100 }}%;
+            margin: 0 0 0 {{ $ticket['margen_izquierdo'] ?? 0 }}%;
         }
 
         /* CABECERA */
         .header {
             text-align: center;
-            padding-bottom: 1.5mm;
+            padding-bottom: 0.8mm;
             border-bottom: 2px solid #000;
-            margin-bottom: 1.5mm;
+            margin-bottom: 0.8mm;
         }
         .header img {
             max-height: 12mm;
             display: block;
-            margin: 0 auto 1mm;
+            margin: 0 auto 0.5mm;
         }
         .header .nombre {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0px;
         }
         .tipo-doc {
             text-align: center;
-            font-size: 8px;
+            font-size: 9px;
             font-weight: bold;
             text-transform: uppercase;
-            padding: 1mm 0;
+            padding: 0.5mm 0;
             border-bottom: 1px solid #000;
-            margin-bottom: 1mm;
-            letter-spacing: 0.3px;
+            margin-bottom: 0.5mm;
+            letter-spacing: 0px;
         }
 
         /* SEPARADORES */
-        .sep { border: none; border-top: 1px dashed #000; margin: 1.2mm 0; }
+        .sep { border: none; border-top: 1px dashed #000; margin: 0.6mm 0; }
         .sep-doble {
             border: none;
             border-top: 2px solid #000;
-            margin: 1.2mm 0;
+            margin: 0.6mm 0;
         }
 
         /* FILAS DE DATOS (tabla) */
@@ -64,11 +66,11 @@
             border: none;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-bottom: 0.3mm;
+            margin-bottom: 0;
         }
         .fila td {
-            padding: 0.2mm 0;
-            font-size: 6.5px;
+            padding: 0;
+            font-size: 8px;
             vertical-align: top;
         }
         .fila .l {
@@ -90,12 +92,12 @@
             border: none;
             border-collapse: collapse;
             table-layout: fixed;
-            margin: 0.5mm 0;
+            margin: 0.3mm 0;
             border-top: 2px solid #000;
             border-bottom: 2px solid #000;
         }
         .fila-total td {
-            padding: 0.8mm 0;
+            padding: 0.4mm 0;
             font-size: 9px;
             font-weight: bold;
             vertical-align: middle;
@@ -108,14 +110,14 @@
             font-weight: bold;
             font-size: 7px;
             text-transform: uppercase;
-            padding: 0.5mm 0;
-            margin-bottom: 0.5mm;
+            padding: 0.3mm 0;
+            margin-bottom: 0.2mm;
             border-bottom: 1px solid #000;
-            letter-spacing: 0.3px;
+            letter-spacing: 0px;
         }
 
         /* PRODUCTOS */
-        .prod { margin-bottom: 1.5mm; }
+        .prod { margin-bottom: 0; }
         .prod-t {
             width: 100%;
             border: none;
@@ -125,35 +127,35 @@
         .prod-t td {
             padding: 0;
             vertical-align: top;
-            font-size: 6.5px;
+            font-size: 7px;
         }
         .prod-nombre {
-            font-weight: bold;
             font-size: 7px;
             text-transform: uppercase;
         }
-        .prod-det { font-size: 6px; color: #333; }
-        .prod-desc { font-size: 6px; font-style: italic; }
-        .tachado { text-decoration: line-through; color: #666; font-size: 6px; }
+        .prod-desc { font-size: 7%px; font-style: italic; }
+        .tachado { text-decoration: line-through; color: #666; font-size: 7px; }
+        .tachado { text-decoration: line-through; color: #666; font-size: 7px; }
+        .prod-precio { font-size: 7px; }
 
         /* BLOQUE (num cuenta) */
-        .bloque { margin-bottom: 0.5mm; font-size: 6.5px; }
-        .bloque .etiqueta { font-size: 5.5px; font-weight: bold; }
-        .bloque .dato { font-size: 7px; font-weight: bold; letter-spacing: 0.5px; }
+        .bloque { margin-bottom: 0.2mm; font-size: 6.5px; }
+        .bloque .etiqueta { font-size: 6.5px; font-weight: bold; }
+        .bloque .dato { font-size: 7px; font-weight: bold; letter-spacing: 0px; }
 
         /* PIE */
         .pie {
             text-align: center;
-            font-size: 6.5px;
+            font-size: 7px;
             color: #000;
-            margin-top: 1mm;
+            margin-top: 0.6mm;
             font-weight: bold;
         }
         .pie-sub {
             text-align: center;
-            font-size: 5.5px;
+            font-size: 7px;
             color: #333;
-            margin-top: 0.5mm;
+            margin-top: 0.3mm;
         }
 
         /* HELPERS */
@@ -261,8 +263,7 @@
             <table class="prod-t">
                 <tr>
                     <td style="width: 65%;">
-                        <div class="prod-nombre">{{ strtoupper($p['nombre']) }}</div>
-                        <div class="prod-det">{{ $p['cantidad'] }} x ${{ number_format($p['precio_unitario'], 2) }}</div>
+                        <div class="prod-nombre">{{ strtoupper($p['nombre']) }} (x{{ $p['cantidad'] }})</div>
                         @if(($p['descuento_aplicado'] ?? 0) > 0)
                             <div class="prod-desc">
                                 DESC:
@@ -279,7 +280,7 @@
                         @if(($p['descuento_aplicado'] ?? 0) > 0)
                             <div class="tachado">${{ number_format($p['subtotal_bruto'], 2) }}</div>
                         @endif
-                        <div class="bold">${{ number_format($p['subtotal_neto'], 2) }}</div>
+                        <div class="prod-precio">${{ number_format($p['subtotal_neto'], 2) }}</div>
                     </td>
                 </tr>
             </table>
@@ -387,7 +388,7 @@
     @if(!empty($ticket['notas']))
         <hr class="sep" />
         <div class="sec-titulo">NOTAS</div>
-        <div style="font-size: 6.5px; color: #000; padding: 0.5mm 0;">{{ $ticket['notas'] }}</div>
+        <div style="font-size: 9px; color: #000; padding: 0.3mm 0;">{{ $ticket['notas'] }}</div>
     @endif
 
     {{-- ==================== PIE ==================== --}}
