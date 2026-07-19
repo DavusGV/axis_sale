@@ -10,11 +10,11 @@ class SetEstablishment
 {
     public function handle(Request $request, Closure $next)
     {
-        $establishmentId = $request->header('X-Establishment-ID');
+        $establecimiento_id = request()->header('X-Establishment-Id');
 
-        if ($establishmentId) {
+        if ($establecimiento_id) {
             // Guardamos el establecimiento activo en el container
-            app()->instance('establishment_id', (int) $establishmentId);
+            app()->instance('establishment_id', (int) $establecimiento_id);
         }
 
         return $next($request);

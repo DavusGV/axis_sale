@@ -86,7 +86,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 // Rutas en api.php
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware(['auth:sanctum', 'validate.establishment'])->group(function () {
+Route::middleware(['auth:sanctum', 'set.establishment', 'validate.establishment'])->group(function () {
 
 
     Route::prefix('roles-permissions')->group(function () {
